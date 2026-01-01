@@ -150,51 +150,60 @@ const ExpertCard = ({ expert }) => {
                     <FaLinkedin />
                   </span>
                 )}
-                <span
-                  className="status-text"
-                  style={{ 
-                    color: expertStatus.color,
-                    marginLeft: '8px',
-                    fontSize: '13px',
-                    fontWeight: '500'
-                  }}
-                >
-                  • {expertStatus.text}
-                </span>
               </div>
             </div>
-            {(expert.country || (expert.user && expert.user.country)) && (
-              <span className="expert-country">
-                <span className="flag-emoji">{getCountryFlag(expert.country || (expert.user && expert.user.country))}</span> {expert.country || (expert.user && expert.user.country)}
+            <div className="details-row">
+              {(expert.country || (expert.user && expert.user.country)) && (
+                <span className="expert-country">
+                  <span className="flag-emoji">{getCountryFlag(expert.country || (expert.user && expert.user.country))}</span> {expert.country || (expert.user && expert.user.country)}
+                </span>
+              )}
+              <span
+                className="status-text"
+                style={{
+                  color: expertStatus.color,
+                  fontSize: '11px',
+                  fontWeight: '600'
+                }}
+              >
+                {expertStatus.text}
               </span>
-            )}
-            {isBusy && isOnline && (
-              <span className="busy-message">
-                💬 Talking to someone...
-              </span>
-            )}
-            
+            </div>
           </div>
+        </div>
+
+        {/* Expert Title */}
+        <div className="title-section">
+          <p className="expert-title">{expert.title}</p>
+          {isBusy && isOnline && (
+            <span className="busy-message">
+              💬 Talking to someone...
+            </span>
+          )}
         </div>
 
         {/* Card Body */}
         <div className="card-body">
-          <p className="expert-title">{expert.title}</p>
-
           <div className="stats-grid">
             <div className="stat-item">
-              <FiStar />
-              <span className="stat-value">{ratingValue}</span>
+              <div className="stat-icon-value">
+                <FiStar />
+                <span className="stat-value">{ratingValue}</span>
+              </div>
               <span className="stat-label">{totalReviews} reviews</span>
             </div>
             <div className="stat-item">
-              <FiUsers />
-              <span className="stat-value">{sessionCount}</span>
+              <div className="stat-icon-value">
+                <FiUsers />
+                <span className="stat-value">{sessionCount}</span>
+              </div>
               <span className="stat-label">Sessions</span>
             </div>
             <div className="stat-item">
-              <FiClock />
-              <span className="stat-value">{experienceYears}</span>
+              <div className="stat-icon-value">
+                <FiClock />
+                <span className="stat-value">{experienceYears}</span>
+              </div>
               <span className="stat-label">Years</span>
             </div>
           </div>

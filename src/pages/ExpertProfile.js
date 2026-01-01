@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { BiRupee } from 'react-icons/bi';
 import { FaLinkedin, FaShareAlt, FaStar } from 'react-icons/fa';
 import * as FiIcons from 'react-icons/fi';
-import { FiMessageSquare, FiPhone } from 'react-icons/fi';
+import { FiClock, FiMessageSquare, FiPhone, FiUsers } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import CallModal from '../components/CallModal';
@@ -343,119 +343,75 @@ const ExpertProfile = () => {
   return (
     <div className="expert-profile-page">
       <div className="container">
-        {/* Header Card - DP LEFT | INFO RIGHT */}
-        <div className="profile-header-card">
-          <div className="profile-header-content">
-            {/* LEFT: Avatar (120px) */}
-            <div className="profile-avatar-container">
-              <div className={`profile-avatar-lg ${isOnline ? 'online' : ''}`}>
-                {expert.user?.avatar ? (
-                  <img src={expert.user.avatar} alt={expert.user?.name} />
-                ) : (
-                  <span>{getInitials(expert.user?.name)}</span>
-                )}
-              </div>
-            </div>
-
-            {/* RIGHT: Info Section */}
-            <div className="profile-identity">
-              <div className="name-verification-row">
-                <h1>{expert.user?.name}</h1>
-                {expert.isVerified && <VerifiedBadge size="medium" />}
-                {expert.linkedinVerified && <FaLinkedin className="linkedin-icon" title="LinkedIn Verified" />}
-                {expert.user?._id && (
-                  <span
-                    className="status-badge"
-                    style={{ 
-                      color: getExpertStatus(expert.user._id).color,
-                      marginLeft: '12px',
-                      fontSize: '14px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    • {getExpertStatus(expert.user._id).text}
-                  </span>
-                )}
-              </div>
-              <p className="profile-headline">{expert.title}</p>
-              <div className="profile-location-row">
-                <span className="location-text">
-                  {expert.user?.country && <>{getCountryFlag(expert.user.country)} {expert.user.country}</>}
-                </span>
-                <span className="dot-separator">•</span>
-                <span className="join-date">Joined {new Date(expert.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
-              </div>
-
-              <div className="profile-stats-row">
-                <span className="stat-link">
-                  <strong>{expert.totalCalls || 0}</strong> consultations
-                </span>
-                <span className="stat-link">
-                  <strong>{expert.rating?.toFixed(1) || '0.0'}</strong> rating
-                </span>
-              </div>
-
-              {/* Action Buttons - Desktop Only */}
-              <div className="profile-actions-desktop">
-                {isAuthenticated && user?.role !== 'expert' && (
-                  <>
-                    <button
-                      className={`action-btn-primary ${!canCall ? 'disabled' : ''}`}
-                      onClick={handleCallClick}
-                      disabled={!canCall}
-                    >
-                      <FiPhone /> {isBusy ? 'Busy' : 'Connect Now'}
-                    </button>
-                    <button
-                      className="action-btn-secondary"
-                      onClick={handleChatClick}
-                    >
-                      <FiMessageSquare /> Free Chat
-                    </button>
-                  </>
-                )}
-                <button className="action-btn-icon" onClick={handleShareProfile} title="Share">
-                  <FaShareAlt />
-                </button>
-                {isAuthenticated && user?.role !== 'expert' && (
-                  <button className="action-btn-icon" onClick={handleBlockToggle} title={isBlocked ? "Unblock" : "Block"}>
-                    {isBlocked ? <span style={{ color: 'red' }}>🚫</span> : <span>🚫</span>}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Share Section - WhatsApp & LinkedIn */}
-        <div className="share-section">
-          <h3>Share Profile</h3>
-          <div className="share-buttons">
-            <button
-              className="share-btn whatsapp"
-              onClick={() => {
-                const profileUrl = window.location.href;
-                const shareText = `Check out ${expert.user?.name} on ConsultOnCall`;
-                window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + profileUrl)}`, '_blank');
-              }}
-            >
-              <FaShareAlt /> WhatsApp
-            </button>
-            <button
-              className="share-btn linkedin"
-              onClick={() => {
-                const profileUrl = window.location.href;
-                window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(profileUrl)}`, '_blank');
-              }}
-            >
-              <FaLinkedin /> LinkedIn
-            </button>
-          </div>
-        </div>
-
         <div className="profile-grid-layout">
-          {/* Left Column: Details */}
+          {/* Left Column: Main Content */}
           <div className="profile-left-col">
+            {/* Header Card */}
+            <div className="profile-header-card">
+              <div className="profile-header-content">
+                {/* Avatar Section - Left */}
+                <div className="profile-avatar-container">
+                  <div className={`profile-avatar-lg ${isOnline ? 'online' : ''}`}>
+                    {expert.user?.avatar ? (
+                      <img src={expert.user.avatar} alt={expert.user?.name} />
+                    ) : (
+                      <span>{getInitials(expert.user?.name)}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Info Section - Right */}
+                <div className="profile-identity">
+                  <div className="name-verification-row">
+                    <h1>{expert.user?.name}</h1>
+                    {expert.isVerified && <VerifiedBadge size="medium" />}
+                    {expert.linkedinVerified && <FaLinkedin className="linkedin-icon" title="LinkedIn Verified" />}
+                  </div>
+                  
+                  <div className="profile-location-row">
+                    <span className="location-text">
+                      {expert.user?.country && <>{getCountryFlag(expert.user.country)} {expert.user.country}</>}
+                    </span>
+                    {expert.user?._id && (
+                      <span
+                        className="status-badge"
+                        style={{ 
+                          color: getExpertStatus(expert.user._id).color,
+                          marginLeft: '8px',
+                          fontSize: '13px',
+                          fontWeight: '600'
+                        }}
+                      >
+                        • {getExpertStatus(expert.user._id).text}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="profile-headline">{expert.title}</p>
+                  
+                  {/* Compact Stats Row */}
+                  <div className="profile-stats-row">
+                    <div className="stat-mini">
+                      <FiUsers className="stat-icon" />
+                      <span className="stat-number">{expert.totalCalls || 0}</span>
+                    </div>
+                    <div className="stat-mini">
+                      <FaStar className="stat-icon star" />
+                      <span className="stat-number">{expert.rating?.toFixed(1) || '0.0'}</span>
+                    </div>
+                    <div className="stat-mini">
+                      <FiClock className="stat-icon" />
+                      <span className="stat-number">{expert.experience || 0}y</span>
+                    </div>
+                  </div>
+                  
+                  <div className="profile-meta-info">
+                     <span className="join-date">Joined {new Date(expert.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* About Section */}
             <div className="profile-section card">
               <h2>About</h2>
@@ -519,28 +475,97 @@ const ExpertProfile = () => {
 
           {/* Right Column: Sidebar (Sticky) */}
           <div className="profile-right-col">
+            {/* Consultation Rate Card */}
             <div className="rate-card card sticky-sidebar">
               <h3>Consultation Rate</h3>
               <div className="rate-price">
                 <BiRupee />{expert.tokensPerMinute} <span className="period">/ min</span>
               </div>
+              
+              <div className="sidebar-actions">
+                <button
+                  className={`action-btn-primary ${!canCall ? 'disabled' : ''}`}
+                  onClick={handleCallClick}
+                  disabled={!canCall}
+                >
+                  <FiPhone /> {isBusy ? 'Busy' : 'Connect Now'}
+                </button>
+                <button
+                  className="action-btn-secondary"
+                  onClick={handleChatClick}
+                >
+                  <FiMessageSquare /> Free Chat
+                </button>
+              </div>
+
               <div className="rate-features">
                 <div className="feature-item"><FiPhone /> Voice/Video Call</div>
                 <div className="feature-item"><FiMessageSquare /> Chat Support</div>
               </div>
+            </div>
 
-              {/* Desktop Call Actions - Hidden on mobile */}
-              <div className="desktop-call-actions">
-                <button
-                  className={`call-button-lg ${!canCall ? 'disabled' : ''}`}
-                  onClick={handleCallClick}
-                  disabled={!canCall}
-                >
-                  {!isOnline ? 'Offline' : isBusy ? 'Busy' : 'Connect Now'}
-                </button>
-                <p className="min-balance-hint">Min balance: ₹{expert.tokensPerMinute * 5}</p>
+            {/* Statistics Card */}
+            <div className="stats-card card">
+              <h3>Expert Statistics</h3>
+              <div className="profile-stats-grid">
+                <div className="p-stat-item">
+                  <div className="p-stat-icon"><FiUsers /></div>
+                  <div className="p-stat-info">
+                    <span className="p-stat-value">{expert.totalCalls || 0}</span>
+                    <span className="p-stat-label">Consultations</span>
+                  </div>
+                </div>
+                <div className="p-stat-item">
+                  <div className="p-stat-icon star"><FaStar /></div>
+                  <div className="p-stat-info">
+                    <span className="p-stat-value">{expert.rating?.toFixed(1) || '0.0'}</span>
+                    <span className="p-stat-label">Rating</span>
+                  </div>
+                </div>
+                <div className="p-stat-item">
+                  <div className="p-stat-icon"><FiClock /></div>
+                  <div className="p-stat-info">
+                    <span className="p-stat-value">{expert.experience || 0} Years</span>
+                    <span className="p-stat-label">Experience</span>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Share Section */}
+            <div className="share-section card">
+              <h3>Share Profile</h3>
+              <div className="share-buttons-col">
+                <button
+                  className="share-btn whatsapp"
+                  onClick={() => {
+                    const profileUrl = window.location.href;
+                    const shareText = `Check out ${expert.user?.name} on ConsultOnCall`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + profileUrl)}`, '_blank');
+                  }}
+                >
+                  <FaShareAlt /> Share on WhatsApp
+                </button>
+                <button
+                  className="share-btn linkedin"
+                  onClick={() => {
+                    const profileUrl = window.location.href;
+                    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(profileUrl)}`, '_blank');
+                  }}
+                >
+                  <FaLinkedin /> Share on LinkedIn
+                </button>
+                <button className="share-btn copy" onClick={handleShareProfile}>
+                   <FiIcons.FiCopy /> Copy Link
+                </button>
+              </div>
+            </div>
+            
+            {isAuthenticated && user?.role !== 'expert' && (
+               <button className="block-btn" onClick={handleBlockToggle}>
+                  {isBlocked ? 'Unblock Expert' : 'Block Expert'}
+               </button>
+            )}
           </div>
         </div>
       </div>
