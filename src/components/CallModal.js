@@ -40,6 +40,62 @@ const CallModal = ({ expert, onClose }) => {
   const timerRef = useRef(null);
   const hasStartedCallRef = useRef(false);
 
+  const setupPeerConnection = useCallback(async () => {
+    if (!callId || peerConnectionRef.current) return;
+
+    const config = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    const pc = new RTCPeerConnection(config);
+    peerConnectionRef.current = pc;
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+    }
+
+    pc.ontrack = (event) => {
+      remoteStreamRef.current = event.streams[0];
+      const audio = document.getElementById('remoteAudio');
+      if (audio) {
+        audio.srcObject = event.streams[0];
+        audio.play().catch(err => console.warn('Audio play failed:', err));
+
+        // Handle speaker toggle
+        if (typeof audio.setSinkId === 'function' && isSpeakerOn) {
+          // Need device ID enumeration to specific set output, simpler to just rely on system default for now or basic output
+          // This is complex due to browser restrictions without specific device permission
+        }
+      }
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        sendIceCandidate(callId, event.candidate);
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'connected') {
+        markCallConnected(callId).catch(console.error);
+      }
+    };
+
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendOffer(callId, offer);
+    } catch (error) {
+      console.error('Create offer error:', error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callId, isSpeakerOn]);
+
   useEffect(() => {
     callStatusRef.current = callStatus;
   }, [callStatus]);
@@ -248,62 +304,6 @@ const CallModal = ({ expert, onClose }) => {
       setTimeout(() => onClose(), 2000);
     }
   };
-
-  const setupPeerConnection = useCallback(async () => {
-    if (!callId || peerConnectionRef.current) return;
-
-    const config = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    };
-
-    const pc = new RTCPeerConnection(config);
-    peerConnectionRef.current = pc;
-
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
-        pc.addTrack(track, localStreamRef.current);
-      });
-    }
-
-    pc.ontrack = (event) => {
-      remoteStreamRef.current = event.streams[0];
-      const audio = document.getElementById('remoteAudio');
-      if (audio) {
-        audio.srcObject = event.streams[0];
-        audio.play().catch(err => console.warn('Audio play failed:', err));
-
-        // Handle speaker toggle
-        if (typeof audio.setSinkId === 'function' && isSpeakerOn) {
-          // Need device ID enumeration to specific set output, simpler to just rely on system default for now or basic output
-          // This is complex due to browser restrictions without specific device permission
-        }
-      }
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        sendIceCandidate(callId, event.candidate);
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') {
-        markCallConnected(callId).catch(console.error);
-      }
-    };
-
-    try {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendOffer(callId, offer);
-    } catch (error) {
-      console.error('Create offer error:', error);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [callId, isSpeakerOn]);
 
   const handleWebRTCOffer = async (data) => {
     if (data.callId !== callId) return;
