@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { faMicrophone, faMicrophoneSlash, faPhone, faPhoneSlash, faVolumeUp } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMicrophone, faMicrophoneSlash, faPhone, faPhoneSlash, faVolumeUp, faIndianRupeeSign } from '@fortawesome/free-solid-svg-icons';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -19,11 +19,14 @@ const CallPopupModal = () => {
     socket
   } = useSocket();
 
-  // Determine if this is incoming or outgoing
-  const isIncoming = Boolean(incomingCall && !activeCall);
+  // Avoid duplicating the user-side outgoing call modal.
+  // This popup is dedicated to the expert-side incoming/active call UI.
+  const isExpertUser = user?.role === 'expert';
+
+  const isIncoming = Boolean(incomingCall);
   const callData = isIncoming ? incomingCall : activeCall;
 
-  const [callStatus, setCallStatus] = useState(isIncoming ? 'ringing' : 'connecting');
+  const [callStatus, setCallStatus] = useState(isIncoming ? 'ringing' : 'connected');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
@@ -59,7 +62,7 @@ const CallPopupModal = () => {
           setRemoteUser({ name: 'User', avatar: null });
           return;
         }
-        const remoteId = user.role === 'expert' ? callData.userId : callData.expertId;
+        const remoteId = callData.userId;
         const res = await axios.get(`/api/users/${remoteId}`);
         setRemoteUser(res.data);
       } catch {
@@ -108,13 +111,18 @@ const CallPopupModal = () => {
   // Accept/reject handlers
   const handleAccept = () => {
     if (!incomingCall || !expert) return;
-    acceptCall(incomingCall.callId, incomingCall.callerId, expert._id || expert.id);
-    setCallStatus('connecting');
-    toast.success('Call accepted!');
+    acceptCall({
+      callId: incomingCall.callId,
+      userId: incomingCall.userId,
+      expertId: expert._id || expert.id,
+      callerInfo: incomingCall.callerInfo
+    });
+    setCallStatus('connected');
+    toast.success('Call accepted');
   };
   const handleReject = () => {
     if (!incomingCall) return;
-    rejectCall(incomingCall.callId, incomingCall.callerId);
+    rejectCall({ callId: incomingCall.callId, reason: 'Expert declined' });
     setIsVisible(false);
     setForceClose(true);
     toast.info('Call declined');
@@ -124,6 +132,11 @@ const CallPopupModal = () => {
     setForceClose(true);
     if (callData) {
       try {
+        // End call in backend first (source of truth)
+        const token = localStorage.getItem('token');
+        if (token) {
+          await axios.put(`/api/calls/end/${callData.callId}`, { initiatedBy: 'expert' }, { headers: { 'x-auth-token': token } });
+        }
         await endCall(callData.callId);
       } catch {}
     }
@@ -157,52 +170,68 @@ const CallPopupModal = () => {
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (!isExpertUser) return null;
   if (!callData || !isVisible || forceClose) return null;
-  // UI
+
+  const isStageA = isIncoming && callStatus === 'ringing';
+  const isStageC = !isIncoming || callStatus === 'connected';
+
   return (
-    <div className="call-modal-overlay">
-      <div className="call-modal unified">
-        <div className="call-info">
-          <div className="call-avatar">
+    <div className={`call-modal-overlay stage-${isStageA ? 'a' : 'c'}`}>
+      <div className="call-modal-content">
+        <div className={`expert-display ${isStageC ? 'minimized' : ''}`}>
+          <div className={`expert-avatar ${isStageA ? 'pulsing' : ''}`}>
             {remoteUser?.avatar ? (
               <img src={remoteUser.avatar} alt={remoteUser.name} />
             ) : (
-              <span>{remoteUser?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}</span>
+              <span className="initials">{remoteUser?.name?.[0] || '?'}</span>
             )}
           </div>
-          <h2>{remoteUser?.name || 'User'}</h2>
-          <div className="call-chips-row">
-            <span className="call-chip"><FontAwesomeIcon icon={faIndianRupeeSign} />{expert?.tokensPerMinute || 0}/min</span>
-            <span className="call-chip"><FontAwesomeIcon icon={faPhone} /> {isIncoming ? 'Incoming' : 'Outgoing'}</span>
+
+          <div className="expert-details-text">
+            <h2>{remoteUser?.name || 'User'}</h2>
+            {isIncoming && <p className="specialization">Incoming Call</p>}
+            {isStageA && <p className="status-label">Incoming...</p>}
           </div>
         </div>
-        <div className="call-status">
-          <p className={`status-text ${callStatus}`}>{callStatus === 'connected' ? 'Connected' : callStatus === 'ringing' ? 'Ringing...' : 'Connecting...'}</p>
-          {callStatus === 'connected' && (
-            <p className="call-duration">{formatDuration(duration)}</p>
-          )}
-          {(callStatus === 'ringing' || callStatus === 'connecting') && (
-            <div className="ringing-animation">
-              <span></span><span></span><span></span>
-            </div>
-          )}
-        </div>
-        <div className="call-actions">
-          {isIncoming && callStatus === 'ringing' ? (
+
+        {isStageC && (
+          <div className="active-call-timer">{formatDuration(duration)}</div>
+        )}
+
+        <div className="call-controls-footer">
+          {isIncoming && isStageA ? (
             <>
-              <button className="action-btn accept-btn" onClick={handleAccept} title="Accept Call"><FontAwesomeIcon icon={faPhone} /></button>
-              <button className="action-btn end-btn" onClick={handleReject} title="Decline"><FontAwesomeIcon icon={faPhoneSlash} /></button>
+              <button className="control-btn end-call-btn" onClick={handleReject}>
+                <div className="icon-circle"><FontAwesomeIcon icon={faPhoneSlash} /></div>
+                <span className="btn-label">Reject</span>
+              </button>
+
+              <button className="control-btn accept-call-btn" onClick={handleAccept}>
+                <div className="icon-circle"><FontAwesomeIcon icon={faPhone} /></div>
+                <span className="btn-label">Accept</span>
+              </button>
             </>
           ) : (
             <>
-              <button className={`action-btn mute-btn ${isMuted ? 'active' : ''}`} onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'} disabled={callStatus !== 'connected'}>{isMuted ? <FontAwesomeIcon icon={faMicrophoneSlash} /> : <FontAwesomeIcon icon={faMicrophone} />}</button>
-              <button className={`action-btn speaker-btn ${isSpeakerOn ? 'active' : ''}`} onClick={toggleSpeaker} title={isSpeakerOn ? 'Switch to earpiece' : 'Switch to speaker'} disabled={callStatus !== 'connected'}><FontAwesomeIcon icon={faVolumeUp} /></button>
-              <button className="action-btn end-btn" onClick={handleEndCall} title="End Call"><FontAwesomeIcon icon={faPhoneSlash} /></button>
+              <button className={`control-btn ${isMuted ? 'active-state' : ''}`} onClick={toggleMute}>
+                <div className="icon-circle">{isMuted ? <FontAwesomeIcon icon={faMicrophoneSlash} /> : <FontAwesomeIcon icon={faMicrophone} />}</div>
+                <span className="btn-label">{isMuted ? 'Unmute' : 'Mute'}</span>
+              </button>
+
+              <button className={`control-btn ${isSpeakerOn ? 'active-state' : ''}`} onClick={toggleSpeaker}>
+                <div className="icon-circle"><FontAwesomeIcon icon={faVolumeUp} /></div>
+                <span className="btn-label">Speaker</span>
+              </button>
+
+              <button className="control-btn end-call-btn" onClick={handleEndCall}>
+                <div className="icon-circle"><FontAwesomeIcon icon={faPhoneSlash} /></div>
+                <span className="btn-label">End</span>
+              </button>
             </>
           )}
         </div>
-        <audio id="remoteAudio" autoPlay playsInline />
-        <audio id="localAudio" style={{ display: 'none' }} autoPlay muted playsInline />
       </div>
     </div>
   );

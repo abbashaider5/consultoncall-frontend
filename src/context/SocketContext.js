@@ -186,7 +186,7 @@ export const SocketProvider = ({ children }) => {
         callId: data.callId,
         userId: data.userId,
         expertId: data.expertId,
-        callerInfo: data.caller // Include caller info from socket payload
+        callerInfo: data.caller
       };
       
       console.log('📞 Incoming call data prepared:', incomingCallData);
@@ -237,7 +237,28 @@ export const SocketProvider = ({ children }) => {
     // Chat events
     newSocket.on('receive_message', (data) => {
       console.log('💬 New message received:', data);
-      setNewMessage(data); // Triggers UI update
+
+      // Normalize to the shape Chat.js expects
+      const normalized = {
+        chatId: data.chatId,
+        message: {
+          _id: data.tempId || `${Date.now()}`,
+          sender: data.senderId,
+          content: data.content,
+          createdAt: data.timestamp,
+          read: false
+        },
+        raw: data
+      };
+
+      setNewMessage(normalized);
+
+      if (data.chatId) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [data.chatId]: (prev[data.chatId] || 0) + 1
+        }));
+      }
     });
 
     newSocket.on('typing_status', (data) => {
@@ -278,44 +299,110 @@ export const SocketProvider = ({ children }) => {
     }
   }, []);
 
-  // Initiate call
+  // Initiate call (caller side)
   const initiateCall = useCallback((data) => {
-    if (socket && isConnected) {
-      console.log('socket emit call:initiate', data);
-      socket.emit('call:initiate', data);
+    if (!socket || !isConnected) {
+      return Promise.resolve({ success: false, error: 'Socket not connected' });
     }
-  }, [socket, isConnected]);
 
-  const acceptCall = useCallback((data) => {
-    if (socket && isConnected) {
-      console.log('socket emit accept_call', data);
-      socket.emit('accept_call', data);
-    }
-  }, [socket, isConnected]);
+    const callerId = isExpert ? (expert?._id || expert?.id) : (user?._id || user?.id);
+    const payload = {
+      ...data,
+      // Ensure userId always exists for socket-server
+      ...(callerId ? { userId: data.userId || callerId } : {})
+    };
 
-  const rejectCall = useCallback((data) => {
-    if (socket && isConnected) {
-      console.log('socket emit reject_call', data);
-      socket.emit('reject_call', data);
+    console.log('socket emit call:initiate', payload);
+
+    // Track outgoing call locally so call_accepted/call_connected can transition UI
+    if (payload.callId) {
+      setActiveCall({
+        callId: payload.callId,
+        userId: payload.userId,
+        expertId: payload.expertId,
+        status: 'ringing',
+        startTime: null
+      });
     }
-  }, [socket, isConnected]);
+
+    return new Promise((resolve) => {
+      socket.emit('call:initiate', payload, (response) => {
+        resolve(response || { success: true });
+      });
+    });
+  }, [socket, isConnected, isExpert, user, expert]);
+
+  // Expert accepts call (expert side)
+  const acceptCall = useCallback(async (data) => {
+    if (!socket || !isConnected) return;
+
+    const { callId, userId, expertId, callerInfo } = data || {};
+    if (!callId) return;
+
+    // Update backend first (source of truth)
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await axios.put(`/api/calls/accept/${callId}`, {}, { headers: { 'x-auth-token': token } });
+      }
+    } catch (e) {
+      console.error('Failed to accept call in backend:', e);
+    }
+
+    socket.emit('accept_call', { callId });
+    // In this app, acceptance implies call is "connected" for timer/billing
+    socket.emit('call_connected', { callId });
+
+    setIncomingCall(null);
+    setActiveCall({
+      callId,
+      userId,
+      expertId,
+      status: 'connected',
+      startTime: Date.now(),
+      callerInfo
+    });
+
+    stopIncomingCallSound();
+  }, [socket, isConnected, stopIncomingCallSound]);
+
+  const rejectCall = useCallback(async (data) => {
+    if (!socket || !isConnected) return;
+
+    const { callId, reason } = data || {};
+    if (!callId) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await axios.put(`/api/calls/reject/${callId}`, { reason }, { headers: { 'x-auth-token': token } });
+      }
+    } catch (e) {
+      console.error('Failed to reject call in backend:', e);
+    }
+
+    socket.emit('reject_call', { callId, reason });
+    setIncomingCall(null);
+    setActiveCall(null);
+    stopIncomingCallSound();
+  }, [socket, isConnected, stopIncomingCallSound]);
 
   const markCallConnected = useCallback((data) => {
-    if (socket && isConnected) {
-      console.log('socket emit call_connected', data);
-      socket.emit('call_connected', data);
-    }
+    if (!socket || !isConnected) return;
+    const payload = typeof data === 'string' ? { callId: data } : data;
+    if (!payload?.callId) return;
+    socket.emit('call_connected', payload);
   }, [socket, isConnected]);
 
   const endCall = useCallback((data) => {
-    if (socket && isConnected) {
-      console.log('socket emit end_call', data);
-      socket.emit('end_call', data);
-      setActiveCall(null);
-      setIncomingCall(null);
-      stopIncomingCallSound();
-    }
-  }, [socket, isConnected]);
+    if (!socket || !isConnected) return;
+    const payload = typeof data === 'string' ? { callId: data } : data;
+    if (!payload?.callId) return;
+    socket.emit('end_call', payload);
+    setActiveCall(null);
+    setIncomingCall(null);
+    stopIncomingCallSound();
+  }, [socket, isConnected, stopIncomingCallSound]);
 
   const sendOffer = useCallback((data) => {
     if (socket && isConnected) {
@@ -337,7 +424,7 @@ export const SocketProvider = ({ children }) => {
 
 
   // Chat functions
-  const sendMessage = useCallback((receiverId, content, type = 'text') => {
+  const sendMessage = useCallback((receiverId, content, type = 'text', meta = {}) => {
     if (!socket || !isConnected) {
       return Promise.reject(new Error('Socket not connected'));
     }
@@ -350,7 +437,8 @@ export const SocketProvider = ({ children }) => {
         receiverId,
         content,
         type,
-        tempId
+        tempId,
+        ...(meta?.chatId ? { chatId: meta.chatId } : {})
       }, (response) => {
         if (response.success) {
           resolve({ ...response, tempId });
@@ -360,6 +448,25 @@ export const SocketProvider = ({ children }) => {
       });
     });
   }, [socket, isConnected]);
+
+  // Compatibility helpers for Chat.js (conversation-based UI)
+  const joinChatRoom = useCallback(() => {
+    // No room concept on server for chats right now
+  }, []);
+
+  const leaveChatRoom = useCallback(() => {
+    // No room concept on server for chats right now
+  }, []);
+
+  const sendChatMessage = useCallback((chatId, receiverId, message) => {
+    if (!receiverId || !message?.content) return;
+    return sendMessage(receiverId, message.content, 'text', { chatId });
+  }, [sendMessage]);
+
+  const clearUnreadCount = useCallback((chatId) => {
+    if (!chatId) return;
+    setUnreadCounts((prev) => ({ ...prev, [chatId]: 0 }));
+  }, []);
 
   const sendTyping = useCallback((receiverId, isTyping) => {
     if (socket && isConnected) {
@@ -409,8 +516,13 @@ export const SocketProvider = ({ children }) => {
     sendAnswer,
     sendIceCandidate,
     sendMessage,
+    sendChatMessage,
+    joinChatRoom,
+    leaveChatRoom,
     sendTyping,
     markMessagesRead
+    ,
+    clearUnreadCount
   };
 
   return (

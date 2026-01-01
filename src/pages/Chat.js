@@ -3,6 +3,7 @@ import { FiArrowLeft, FiSend, FiTrash2 } from 'react-icons/fi';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import './Chat.css';
 
@@ -14,7 +15,8 @@ const Chat = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
-  const { newMessage, joinChatRoom, leaveChatRoom, sendChatMessage, markMessagesRead, unreadCounts, isExpertOnline } = useSocket();
+  const { newMessage, sendChatMessage, clearUnreadCount, unreadCounts, isExpertOnline } = useSocket();
+  const { isExpert } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const currentUserId = localStorage.getItem('userId');
@@ -43,24 +45,30 @@ const Chat = () => {
 
   // Handle new messages
   useEffect(() => {
-    if (newMessage && selectedChat && newMessage.chatId === selectedChat._id) {
+    if (!newMessage || !selectedChat) return;
+    if (newMessage.chatId && newMessage.chatId === selectedChat._id && newMessage.message) {
       setMessages(prev => [...prev, newMessage.message]);
       scrollToBottom();
+      clearUnreadCount?.(selectedChat._id);
     }
-  }, [newMessage, selectedChat]);
+  }, [newMessage, selectedChat, clearUnreadCount]);
 
-  // Join chat room when chat is selected
+  // Load messages + mark read when chat is selected
   useEffect(() => {
-    if (selectedChat) {
-      joinChatRoom(selectedChat._id);
-      loadMessages(selectedChat._id);
-      markMessagesRead(selectedChat._id);
+    if (!selectedChat) return;
 
-      return () => {
-        leaveChatRoom(selectedChat._id);
-      };
-    }
-  }, [selectedChat, joinChatRoom, leaveChatRoom, markMessagesRead]);
+    loadMessages(selectedChat._id);
+
+    // Mark read in backend (source of truth)
+    (async () => {
+      try {
+        await axios.put(`/api/chats/${selectedChat._id}/read`);
+        clearUnreadCount?.(selectedChat._id);
+      } catch (e) {
+        // Non-fatal
+      }
+    })();
+  }, [selectedChat, clearUnreadCount]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -117,8 +125,10 @@ const Chat = () => {
       setMessageText('');
 
       // Send via socket for real-time delivery
-      if (sendChatMessage) {
-        sendChatMessage(selectedChat._id, data);
+      const other = getOtherParticipant(selectedChat);
+      if (sendChatMessage && other?._id) {
+        // Relay minimal data; receiver will update UI via receive_message
+        await sendChatMessage(selectedChat._id, other._id, { content: data.content });
       }
 
     } catch (error) {
@@ -293,13 +303,15 @@ const Chat = () => {
                 </div>
               </div>
               <div className="chat-header-actions">
-                <button
-                  className="chat-options-btn block-btn"
-                  onClick={handleBlockUser}
-                  title="Block User"
-                >
-                  Block
-                </button>
+                {isExpert && (
+                  <button
+                    className="chat-options-btn block-btn"
+                    onClick={handleBlockUser}
+                    title="Block User"
+                  >
+                    Block
+                  </button>
+                )}
                 <button
                   className="chat-options-btn delete-btn"
                   onClick={() => handleDeleteChat(selectedChat._id)}

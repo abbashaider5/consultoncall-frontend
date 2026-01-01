@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FiMic, FiMicOff, FiPhoneOff, FiVolume2, FiMessageSquare } from 'react-icons/fi';
+import { FiMessageSquare, FiMicOff, FiPhoneOff, FiVolume2 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -86,7 +86,7 @@ const CallModal = ({ expert, onClose }) => {
     return () => {
       // End call if it's still active when component unmounts
       if (callId && (callStatus === 'ringing' || callStatus === 'connecting' || callStatus === 'connected')) {
-        endCall(callId, 'user_disconnected');
+        endCall(callId);
       }
       cleanup();
     };
@@ -102,7 +102,7 @@ const CallModal = ({ expert, onClose }) => {
       }
 
       // Check user balance
-      const minTokens = expert.tokensPerMinute * 1;
+      const minTokens = expert.tokensPerMinute * 5;
       if (user.tokens < minTokens) {
         toast.error(`Minimum ₹${minTokens} required for this call`);
         onClose();
@@ -135,10 +135,22 @@ const CallModal = ({ expert, onClose }) => {
       setCallStatus('ringing');
 
       // CRITICAL FIX: Pass data object, not individual parameters
-      initiateCall({
+      const ack = await initiateCall({
         callId: newCallId,
         expertId: expert._id
       });
+
+      if (ack && ack.success === false) {
+        toast.error(ack.error || 'Unable to connect the call. Please try again.');
+        try {
+          await axios.put(`/api/calls/end/${newCallId}`, { initiatedBy: 'user' });
+        } catch (e) {
+          // ignore
+        }
+        cleanup();
+        onClose();
+        return;
+      }
 
     } catch (error) {
       console.error('❌ Start call error:', error);
@@ -255,24 +267,22 @@ const CallModal = ({ expert, onClose }) => {
   const handleEndCall = async () => {
     try {
       if (callId) {
-        // Optimistic UI update
-        // setCallStatus('ending'); 
+        const res = await axios.put(`/api/calls/end/${callId}`, {
+          initiatedBy: 'user'
+        });
 
-        if (callStatus === 'connected') {
-          const res = await axios.put(`/api/calls/end/${callId}`, {
-            initiatedBy: 'user'
-          });
-
-          if (res.data.success) {
+        if (res.data?.success) {
+          if (res.data.newBalance !== undefined) {
             updateTokens(res.data.newBalance);
-            toast.success(`Call Ended. Time: ${res.data.call.minutes}m | Cost: ₹${res.data.call.tokensSpent}`);
-            await endCall(callId);
           }
-        } else {
-          // Stage A Cancellation
-          await endCall(callId);
-          toast.info('Call Cancelled');
+          if (callStatus === 'connected') {
+            toast.success(`Call Ended. Time: ${res.data.call?.minutes || 0}m | Cost: ₹${res.data.call?.tokensSpent || 0}`);
+          } else {
+            toast.info('Call Cancelled');
+          }
         }
+
+        await endCall(callId);
       }
 
       cleanup();

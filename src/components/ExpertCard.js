@@ -2,12 +2,12 @@ import { BiRupee } from 'react-icons/bi';
 import { FaLinkedin } from 'react-icons/fa';
 import { FiClock, FiMessageSquare, FiPhone, FiStar, FiUsers } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
-import { useSocket } from '../context/SocketContext';
-import { useAuth } from '../context/AuthContext';
-import { axiosInstance as axios } from '../config/api';
 import { toast } from 'react-toastify';
-import VerifiedBadge from './VerifiedBadge';
+import { axiosInstance as axios } from '../config/api';
+import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import './ExpertCard.css';
+import VerifiedBadge from './VerifiedBadge';
 
 // Country to flag emoji mapping
 const getCountryFlag = (country) => {
