@@ -206,12 +206,24 @@ const CallModal = ({ expert, onClose }) => {
       }
 
       console.log('✅ Call initiated successfully');
+
+      // Set 60s timeout for ringing state
+      const ringingTimeout = setTimeout(() => {
+        if (callStatus === 'ringing') {
+          console.log('⏰ Call timeout - no answer after 60s');
+          toast.info('Expert did not answer');
+          handleEndCall();
+        }
+      }, 60000);
+
+      return () => clearTimeout(ringingTimeout);
     } catch (error) {
       console.error('❌ Start call error:', error);
       setCallStatus('failed');
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to start call';
+      const errorMessage = error.response?.data?.message || error.message || 'Call failed. Please try again.';
       toast.error(errorMessage);
-      setTimeout(onClose, 2000);
+      cleanup();
+      setTimeout(() => onClose(), 2000);
     }
   };
 
@@ -419,7 +431,11 @@ const CallModal = ({ expert, onClose }) => {
               {expert.isVerified && <VerifiedBadge size="small" />}
             </div>
             <p className="specialization">{expert.title || 'Expert Consultant'}</p>
-            {isStageA && <p className="status-label">Ringing...</p>}
+            {isStageA && (
+              <p className="status-label">
+                {callStatus === 'initiating' ? 'Connecting...' : callStatus === 'ringing' ? 'Ringing...' : 'Connecting call...'}
+              </p>
+            )}
           </div>
         </div>
 

@@ -41,10 +41,37 @@
     align-items: center;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.block-btn {
+    padding: 6px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.block-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.block-btn.blocked {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
 .recipient-info {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 1;
 }
 
 .avatar-container {
@@ -70,12 +97,19 @@
 .online-status-dot {
     width: 10px;
     height: 10px;
-    background: #44b700;
+    background: #9ca3af;
     border-radius: 50%;
     position: absolute;
     bottom: 0;
     right: 0;
     border: 2px solid #936AAC;
+    opacity: 0.6;
+}
+
+.online-status-dot.online {
+    background: #44b700;
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(68, 183, 0, 0.6);
 }
 
 .text-info h3 {
@@ -196,12 +230,72 @@
 .send-btn {
     background: none;
     border: none;
-    color: #555;
+    color: #936AAC;
     font-size: 1.2rem;
     cursor: pointer;
     padding: 8px;
     border-radius: 50%;
-    transition: background 0.2s;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.send-btn:hover:not(:disabled) {
+    background: rgba(147, 106, 172, 0.1);
+}
+
+.send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Blocked Notice */
+.chat-blocked-notice {
+    padding: 16px;
+    background: #fee;
+    color: #c33;
+    text-align: center;
+    font-size: 0.9rem;
+    border-top: 1px solid #fcc;
+}
+
+/* Loading Skeleton */
+.loading-skeleton {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.skeleton-message {
+    display: flex;
+}
+
+.skeleton-message.left {
+    justify-content: flex-start;
+}
+
+.skeleton-message.right {
+    justify-content: flex-end;
+}
+
+.skeleton-bubble {
+    width: 60%;
+    height: 48px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 12px;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
 }
 
 .send-btn {

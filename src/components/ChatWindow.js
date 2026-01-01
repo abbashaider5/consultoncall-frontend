@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useSocket } from '../context/SocketContext';
-import { useAuth } from '../context/AuthContext';
+import { useEffect, useRef, useState } from 'react';
+import { FaCheckCircle } from 'react-icons/fa';
+import { FiPaperclip, FiSend, FiX } from 'react-icons/fi';
+import { toast } from 'react-toastify';
 import { axiosInstance } from '../config/api';
+import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import './ChatWindow.css';
 
-const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvatar }) => {
+const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvatar, isVerified }) => {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
+    const [isBlocked, setIsBlocked] = useState(false);
+    const [onlineStatus, setOnlineStatus] = useState(true);
 
     const {
         sendMessage,
@@ -26,6 +29,40 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
     const typingTimeoutRef = useRef(null);
 
     const currentUserId = isExpert ? expert._id : user._id;
+
+    // Check block status
+    useEffect(() => {
+        const checkBlockStatus = async () => {
+            if (!recipientId) return;
+            try {
+                const { data } = await axiosInstance.get('/api/users/blocked');
+                const blocked = data.some(blocked => blocked._id === recipientId);
+                setIsBlocked(blocked);
+            } catch (error) {
+                console.error('Error checking block status:', error);
+            }
+        };
+        if (isOpen) {
+            checkBlockStatus();
+        }
+    }, [isOpen, recipientId]);
+
+    // Handle block/unblock
+    const handleBlockToggle = async () => {
+        try {
+            if (isBlocked) {
+                await axiosInstance.post(`/api/users/unblock/${recipientId}`);
+                setIsBlocked(false);
+                toast.success('User unblocked');
+            } else {
+                await axiosInstance.post(`/api/users/block/${recipientId}`);
+                setIsBlocked(true);
+                toast.success('User blocked');
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Action failed');
+        }
+    };
 
     // Initial Fetch
     useEffect(() => {
@@ -70,12 +107,11 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
 
             if (res.data.success) {
                 setMessages(prev => reset ? res.data.messages : [...res.data.messages, ...prev]);
-                setHasMore(res.data.hasMore);
-                setPage(pageNum);
                 if (reset) scrollToBottom();
             }
         } catch (error) {
             console.error('Failed to fetch messages', error);
+            toast.error('Failed to load messages');
         } finally {
             setIsLoading(false);
         }
@@ -153,68 +189,95 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
                             ) : (
                                 <div className="avatar-placeholder">{recipientName?.charAt(0)}</div>
                             )}
-                            <div className="online-status-dot"></div>
+                            <div className={`online-status-dot ${onlineStatus ? 'online' : ''}`}></div>
                         </div>
                         <div className="text-info">
-                            <h3>{recipientName}</h3>
-                            <span className="status-text">Online</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <h3>{recipientName}</h3>
+                                {isVerified && <FaCheckCircle style={{ color: '#936AAC', fontSize: '16px' }} />}
+                            </div>
+                            <span className="status-text">{onlineStatus ? 'Online' : 'Offline'}</span>
                         </div>
                     </div>
-                    <button className="close-btn" onClick={onClose}>×</button>
+                    <div className="header-actions">
+                        {isExpert && (
+                            <button 
+                                className={`block-btn ${isBlocked ? 'blocked' : ''}`}
+                                onClick={handleBlockToggle}
+                                title={isBlocked ? 'Unblock User' : 'Block User'}
+                            >
+                                {isBlocked ? 'Unblock' : 'Block'}
+                            </button>
+                        )}
+                        <button className="close-btn" onClick={onClose}><FiX /></button>
+                    </div>
                 </div>
 
                 {/* Messages */}
                 <div className="messages-container" ref={chatContainerRef}>
-                    {messages.length === 0 && (
-                        <div className="empty-state">
-                            <p>Start a conversation with {recipientName}</p>
-                        </div>
-                    )}
-
-                    {messages.map((msg, index) => {
-                        const isMe = msg.sender === currentUserId || msg.sender?._id === currentUserId;
-                        const showAvatar = !isMe && (index === 0 || messages[index - 1].sender !== msg.sender);
-
-                        return (
-                            <div key={msg._id} className={`message-wrapper ${isMe ? 'mine' : 'theirs'}`}>
-                                {/* {showAvatar && !isMe && <div className="chat-avatar-small">{recipientName?.charAt(0)}</div>} */}
-                                <div className="message-bubble">
-                                    {msg.type === 'image' ? (
-                                        <img src={msg.content} alt="Attachment" className="msg-image" />
-                                    ) : (
-                                        <p>{msg.content}</p>
-                                    )}
-                                    <span className="msg-time">
-                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        {isMe && (
-                                            <span className="msg-status">
-                                                {msg.status === 'sending' ? '🕒' : '✓'}
-                                            </span>
-                                        )}
-                                    </span>
+                    {isLoading && messages.length === 0 ? (
+                        <div className="loading-skeleton">
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className={`skeleton-message ${i % 2 === 0 ? 'left' : 'right'}`}>
+                                    <div className="skeleton-bubble"></div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            ))}
+                        </div>
+                    ) : messages.length === 0 ? (
+                        <div className="empty-state">
+                            <p>No messages yet</p>
+                            <small>Start the conversation with {recipientName}</small>
+                        </div>
+                    ) : (
+                        messages.map((msg, index) => {
+                            const isMe = msg.sender === currentUserId || msg.sender?._id === currentUserId;
+
+                            return (
+                                <div key={msg._id} className={`message-wrapper ${isMe ? 'mine' : 'theirs'}`}>
+                                    <div className="message-bubble">
+                                        {msg.type === 'image' ? (
+                                            <img src={msg.content} alt="Attachment" className="msg-image" />
+                                        ) : (
+                                            <p>{msg.content}</p>
+                                        )}
+                                        <span className="msg-time">
+                                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {isMe && (
+                                                <span className="msg-status">
+                                                    {msg.status === 'sending' ? '🕒' : '✓'}
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
                     <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input Area */}
-                <form className="chat-input-area" onSubmit={handleSend}>
-                    <button type="button" className="attach-btn">
-                        <i className="fa fa-paperclip"></i>
-                    </button>
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        placeholder="Type a message..."
-                        value={newMessage}
-                        onChange={handleTyping}
-                    />
-                    <button type="submit" className="send-btn" disabled={!newMessage.trim()}>
-                        <i className="fa fa-paper-plane"></i>
-                    </button>
-                </form>
+                {isBlocked ? (
+                    <div className="chat-blocked-notice">
+                        You have blocked this user. Unblock to send messages.
+                    </div>
+                ) : (
+                    <form className="chat-input-area" onSubmit={handleSend}>
+                        <button type="button" className="attach-btn" title="Attach file (Coming soon)">
+                            <FiPaperclip />
+                        </button>
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="Type a message..."
+                            value={newMessage}
+                            onChange={handleTyping}
+                        />
+                        <button type="submit" className="send-btn" disabled={!newMessage.trim()}>
+                            <FiSend style={{ color: '#936AAC' }} />
+                        </button>
+                    </form>
+                )}
             </div>
         </div>
     );
