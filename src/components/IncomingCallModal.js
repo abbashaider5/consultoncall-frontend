@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPhone, faPhoneSlash } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -45,7 +45,10 @@ const IncomingCallModal = () => {
       // Auto-reject after 30 seconds if not answered
       const timeout = setTimeout(() => {
         if (incomingCall) {
-          rejectCall(incomingCall.callId, incomingCall.callerId);
+          rejectCall({
+            callId: incomingCall.callId,
+            reason: 'No answer - timeout'
+          });
           toast.info('Call missed - auto-rejected');
         }
       }, 30000);
@@ -71,13 +74,23 @@ const IncomingCallModal = () => {
       return;
     }
 
-    acceptCall(incomingCall.callId, incomingCall.callerId, currentUserId);
+    // Pass data as object
+    acceptCall({
+      callId: incomingCall.callId,
+      userId: incomingCall.callerId,
+      expertId: currentUserId,
+      callerInfo: incomingCall.callerInfo
+    });
     toast.success('Accepted');
   };
 
   const handleReject = () => {
     if (!incomingCall) return;
-    rejectCall(incomingCall.callId, incomingCall.callerId);
+    // Pass data as object
+    rejectCall({
+      callId: incomingCall.callId,
+      reason: 'User declined'
+    });
   };
 
   if (!incomingCall) return null;

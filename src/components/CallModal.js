@@ -135,7 +135,10 @@ const CallModal = ({ expert, onClose }) => {
 
   const startCall = async () => {
     try {
+      console.log('🚀 Starting call...', { expert, user });
+
       if (!isConnected || !socket) {
+        console.error('❌ Socket not connected:', { isConnected, hasSocket: !!socket, connectionError });
         toast.error(connectionError || 'Socket not connected. Please refresh and try again.');
         onClose();
         return;
@@ -152,15 +155,18 @@ const CallModal = ({ expert, onClose }) => {
       setCallStatus('initiating');
 
       // Create call in database
+      console.log('📞 Creating call in database...');
       const res = await axios.post('/api/calls/initiate', {
         expertId: expert._id
       });
 
+      console.log('✅ Call created in DB:', res.data);
       const newCallId = res.data.call.id;
       setCallId(newCallId);
 
       // Get user media
       try {
+        console.log('🎤 Requesting microphone access...');
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
@@ -168,34 +174,42 @@ const CallModal = ({ expert, onClose }) => {
           }
         });
         localStreamRef.current = stream;
+        console.log('✅ Microphone access granted');
       } catch (mediaError) {
-        console.warn('Could not access microphone:', mediaError);
+        console.warn('⚠️ Could not access microphone:', mediaError);
+        toast.warning('Could not access microphone. Call may have audio issues.');
       }
 
       setCallStatus('ringing');
 
-      // CRITICAL FIX: Pass data object, not individual parameters
+      // CRITICAL FIX: Pass data object properly
+      console.log('📡 Emitting call:initiate to socket server...', { callId: newCallId, expertId: expert._id });
       const ack = await initiateCall({
         callId: newCallId,
-        expertId: expert._id
+        expertId: expert._id,
+        userId: user._id
       });
 
+      console.log('📡 Socket response:', ack);
+
       if (ack && ack.success === false) {
+        console.error('❌ Call initiation failed:', ack.error);
         toast.error(ack.error || 'Unable to connect the call. Please try again.');
         try {
           await axios.put(`/api/calls/end/${newCallId}`, { initiatedBy: 'user' });
         } catch (e) {
-          // ignore
+          console.error('Failed to end call after initiation failure:', e);
         }
         cleanup();
         onClose();
         return;
       }
 
+      console.log('✅ Call initiated successfully');
     } catch (error) {
       console.error('❌ Start call error:', error);
       setCallStatus('failed');
-      const errorMessage = error.response?.data?.message || 'Failed to start call';
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to start call';
       toast.error(errorMessage);
       setTimeout(onClose, 2000);
     }
@@ -379,6 +393,12 @@ const CallModal = ({ expert, onClose }) => {
   const isStageA = callStatus === 'initiating' || callStatus === 'ringing' || callStatus === 'connecting';
   const isStageC = callStatus === 'connected';
 
+  // Safety check for rendering
+  if (!expert || !expert.user) {
+    console.error('❌ CallModal render: Invalid expert data');
+    return null;
+  }
+
   return (
     <div className={`call-modal-overlay stage-${isStageA ? 'a' : 'c'}`}>
       <div className="call-modal-content">
@@ -387,15 +407,15 @@ const CallModal = ({ expert, onClose }) => {
         <div className={`expert-display ${isStageC ? 'minimized' : ''}`}>
           <div className={`expert-avatar ${isStageA ? 'pulsing' : ''}`}>
             {expert.user?.avatar ? (
-              <img src={expert.user.avatar} alt={expert.user?.name} />
+              <img src={expert.user.avatar} alt={expert.user?.name || 'Expert'} />
             ) : (
-              <span className="initials">{expert.user?.name?.[0]}</span>
+              <span className="initials">{expert.user?.name?.[0] || 'E'}</span>
             )}
           </div>
 
           <div className="expert-details-text">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-              <h2>{expert.user?.name}</h2>
+              <h2>{expert.user?.name || 'Expert'}</h2>
               {expert.isVerified && <VerifiedBadge size="small" />}
             </div>
             <p className="specialization">{expert.title || 'Expert Consultant'}</p>
