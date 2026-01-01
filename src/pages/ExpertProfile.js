@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BiRupee } from 'react-icons/bi';
-import { BsPatchCheckFill } from 'react-icons/bs';
 import { FaLinkedin, FaShareAlt, FaStar } from 'react-icons/fa';
 import * as FiIcons from 'react-icons/fi';
 import { FiMessageSquare, FiPhone } from 'react-icons/fi';
@@ -8,6 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import CallModal from '../components/CallModal';
 import ChatWindow from '../components/ChatWindow';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -50,7 +50,7 @@ const ExpertProfile = () => {
   const { usernameOrId } = useParams();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
-  const { isExpertOnline, activeCall } = useSocket();
+  const { isExpertOnline, getExpertStatus, activeCall } = useSocket();
   const [expert, setExpert] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
@@ -361,8 +361,21 @@ const ExpertProfile = () => {
             <div className="profile-identity">
               <div className="name-verification-row">
                 <h1>{expert.user?.name}</h1>
-                {expert.isVerified && <BsPatchCheckFill className="verified-icon" title="Verified Expert" />}
+                {expert.isVerified && <VerifiedBadge size="medium" />}
                 {expert.linkedinVerified && <FaLinkedin className="linkedin-icon" title="LinkedIn Verified" />}
+                {expert.user?._id && (
+                  <span
+                    className="status-badge"
+                    style={{ 
+                      color: getExpertStatus(expert.user._id).color,
+                      marginLeft: '12px',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    • {getExpertStatus(expert.user._id).text}
+                  </span>
+                )}
               </div>
               <p className="profile-headline">{expert.title}</p>
               <div className="profile-location-row">

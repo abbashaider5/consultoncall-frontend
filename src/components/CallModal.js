@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import VerifiedBadge from './VerifiedBadge';
 import './CallModal.css';
 
 const CallModal = ({ expert, onClose }) => {
@@ -393,7 +394,10 @@ const CallModal = ({ expert, onClose }) => {
           </div>
 
           <div className="expert-details-text">
-            <h2>{expert.user?.name}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+              <h2>{expert.user?.name}</h2>
+              {expert.isVerified && <VerifiedBadge size="small" />}
+            </div>
             <p className="specialization">{expert.title || 'Expert Consultant'}</p>
             {isStageA && <p className="status-label">Ringing...</p>}
           </div>

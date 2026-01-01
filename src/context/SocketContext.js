@@ -487,6 +487,17 @@ export const SocketProvider = ({ children }) => {
     return onlineExperts.has(expertId);
   }, [onlineExperts]);
 
+  // Get expert status (Online/Offline/Busy) with color
+  const getExpertStatus = useCallback((expertId) => {
+    if (busyExperts.has(expertId)) {
+      return { text: 'Busy', color: '#fd7e14' }; // Orange
+    }
+    if (onlineExperts.has(expertId)) {
+      return { text: 'Online', color: '#28a745' }; // Green
+    }
+    return { text: 'Offline', color: '#6c757d' }; // Gray
+  }, [onlineExperts, busyExperts]);
+
   const refreshBusyExperts = useCallback(() => {
     // This could optionally emit a request to server to get latest busy list
     // or rely on auto-sync events
@@ -504,6 +515,7 @@ export const SocketProvider = ({ children }) => {
     unreadCounts,
     isExpertOnline,
     isExpertBusy,
+    getExpertStatus,
     refreshBusyExperts,
     initiateCall,
     acceptCall,

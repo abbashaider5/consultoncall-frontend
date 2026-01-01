@@ -56,9 +56,16 @@ const ExpertCard = ({ expert }) => {
       ? socketContext.isExpertBusy
       : () => false;
 
+  const getExpertStatusFn =
+    typeof socketContext?.getExpertStatus === 'function'
+      ? socketContext.getExpertStatus
+      : () => ({ text: 'Offline', color: '#6c757d' });
+
   const isOnline = expert.isOnline || isExpertOnlineFn(expert._id);
 
   const isBusy = isExpertBusyFn(expert._id) || expert.isBusy || false;
+
+  const expertStatus = getExpertStatusFn(expert._id);
 
   const handleChatClick = async (e) => {
     e.preventDefault();
@@ -143,6 +150,17 @@ const ExpertCard = ({ expert }) => {
                     <FaLinkedin />
                   </span>
                 )}
+                <span
+                  className="status-text"
+                  style={{ 
+                    color: expertStatus.color,
+                    marginLeft: '8px',
+                    fontSize: '13px',
+                    fontWeight: '500'
+                  }}
+                >
+                  • {expertStatus.text}
+                </span>
               </div>
             </div>
             {(expert.country || (expert.user && expert.user.country)) && (
@@ -150,10 +168,6 @@ const ExpertCard = ({ expert }) => {
                 <span className="flag-emoji">{getCountryFlag(expert.country || (expert.user && expert.user.country))}</span> {expert.country || (expert.user && expert.user.country)}
               </span>
             )}
-            {/* <span className={`availability-pill ${statusInfo.class}`}>
-              <span className="dot" />
-              {statusInfo.text}
-            </span> */}
             {isBusy && isOnline && (
               <span className="busy-message">
                 💬 Talking to someone...
