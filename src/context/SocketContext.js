@@ -5,7 +5,7 @@ import { axiosInstance as axios } from '../config/api';
 import { useAuth } from './AuthContext';
 
 // PRODUCTION Socket URL - MUST be set in Vercel env vars
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://consultoncall-socket-server.onrender.com';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:10000';
 
 const SocketContext = createContext();
 
@@ -202,9 +202,11 @@ export const SocketProvider = ({ children }) => {
       // Create activeCall if it doesn't exist (user's ringing is in CallModal local state)
       setActiveCall(prev => prev ? { ...prev, status: 'accepted' } : {
         callId: data.callId,
+        userId: data.userId,
         expertId: data.expertId,
         status: 'accepted',
-        startTime: null
+        startTime: null,
+        callerInfo: data.callerInfo
       });
       stopIncomingCallSound();
     });
