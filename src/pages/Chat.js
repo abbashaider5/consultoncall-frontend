@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FiArrowLeft, FiSend, FiTrash2, FiSlash } from 'react-icons/fi';
+import { FiArrowLeft, FiSend, FiSlash, FiTrash2 } from 'react-icons/fi';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { useNavigate, useSearchParams } from 'react-router-dom';
