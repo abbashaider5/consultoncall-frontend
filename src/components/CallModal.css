@@ -1,0 +1,362 @@
+/* ========================================
+   SLEEK FLOATING CALL MODAL - REDESIGNED
+   ======================================== */
+
+/* Global Overlay - Professional Blurred Backdrop */
+.call-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.5);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   FLOATING MODAL CARD - CENTERED
+   ======================================== */
+.call-modal-content {
+  width: 90%;
+  max-width: 400px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 28px;
+  padding: 2.5rem 2rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   STAGE A: OUTGOING CALL (RINGING)
+   ======================================== */
+.call-modal-overlay.stage-a .call-modal-content {
+  background: linear-gradient(135deg, rgba(147, 106, 172, 0.98) 0%, rgba(107, 76, 128, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ========================================
+   STAGE C: ACTIVE CALL (CONNECTED)
+   ======================================== */
+.call-modal-overlay.stage-c .call-modal-content {
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.98) 0%, rgba(17, 24, 39, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ========================================
+   EXPERT DISPLAY SECTION
+   ======================================== */
+.expert-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+/* Expert Avatar with Pulse Animation (Stage A) */
+.expert-avatar {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  position: relative;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.expert-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.expert-avatar .initials {
+  font-size: 3rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Pulse Animation for Outgoing Call */
+.expert-avatar.pulsing::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* Expert Details Text */
+.expert-display h2 {
+  color: #fff;
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.expert-display .specialization {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.status-label {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  animation: blink 2s infinite;
+  font-weight: 600;
+}
+
+@keyframes blink {
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Minimized State for Active Call (Stage C) */
+.expert-display.minimized {
+  margin-bottom: 1.5rem;
+}
+
+.expert-display.minimized .expert-avatar {
+  width: 100px;
+  height: 100px;
+  margin-bottom: 1rem;
+}
+
+.expert-display.minimized h2 {
+  font-size: 1.5rem;
+}
+
+/* ========================================
+   ACTIVE CALL TIMER (STAGE C)
+   ======================================== */
+.active-call-timer {
+  font-size: 3rem;
+  font-weight: 300;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  margin: 1.5rem 0 2rem;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.05em;
+}
+
+/* ========================================
+   CALL CONTROLS FOOTER
+   ======================================== */
+.call-controls-footer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-top: auto;
+}
+
+.control-btn {
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  min-width: 70px;
+}
+
+.control-btn:active {
+  transform: scale(0.95);
+}
+
+.control-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* Icon Circle - White Circular Buttons */
+.icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.4rem;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.control-btn:hover .icon-circle {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+/* Active State (e.g., Muted, Speaker On) */
+.control-btn.active-state .icon-circle {
+  background: #fff;
+  color: #936AAC;
+  border-color: #fff;
+}
+
+/* End Call Button - Large Red Circle */
+.control-btn.end-call-btn .icon-circle {
+  background: #ef4444 !important;
+  width: 68px;
+  height: 68px;
+  font-size: 1.75rem;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.5);
+  border: none;
+}
+
+.control-btn.end-call-btn:hover .icon-circle {
+  background: #dc2626 !important;
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.6);
+}
+
+/* Button Labels - Mandatory Under Icons */
+.btn-label {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* ========================================
+   MOBILE RESPONSIVENESS
+   ======================================== */
+@media (max-width: 480px) {
+  .call-modal-content {
+    width: 90%;
+    max-width: 360px;
+    padding: 2rem 1.5rem;
+    border-radius: 24px;
+  }
+
+  .expert-avatar {
+    width: 120px;
+    height: 120px;
+  }
+
+  .expert-display.minimized .expert-avatar {
+    width: 90px;
+    height: 90px;
+  }
+
+  .expert-display h2 {
+    font-size: 1.5rem;
+  }
+
+  .expert-display.minimized h2 {
+    font-size: 1.25rem;
+  }
+
+  .active-call-timer {
+    font-size: 2.5rem;
+    margin: 1rem 0 1.5rem;
+  }
+
+  .call-controls-footer {
+    gap: 1rem;
+  }
+
+  .icon-circle {
+    width: 50px;
+    height: 50px;
+    font-size: 1.25rem;
+  }
+
+  .control-btn.end-call-btn .icon-circle {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+  }
+
+  .btn-label {
+    font-size: 0.75rem;
+  }
+}
+
+/* ========================================
+   ACCESSIBILITY & POLISH
+   ======================================== */
+.control-btn:focus {
+  outline: none;
+}
+
+.control-btn:focus-visible .icon-circle {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+/* Hidden Audio Element */
+audio {
+  display: none;
+}

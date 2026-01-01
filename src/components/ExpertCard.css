@@ -1,0 +1,914 @@
+/* ExpertCard.css - Premium Glassmorphism Redesign */
+
+:root {
+  --primary-gradient: linear-gradient(135deg, #936AAD 0%, #7A5390 100%);
+  --secondary-gradient: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  --card-hover-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.12);
+  --text-dark: #1F2937;
+  --text-medium: #4B5563;
+  --text-light: #9CA3AF;
+  --success-color: #10B981;
+  --warning-color: #F59E0B;
+}
+
+.expert-card {
+  display: block;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: var(--glass-border);
+  border-radius: 16px;
+  padding: 1.25rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.expert-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--card-hover-shadow);
+  border-color: rgba(147, 106, 173, 0.3);
+  /* Slight tint of primary color */
+}
+
+/* Card Content Structure */
+.expert-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Header Section */
+.card-header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.expert-avatar {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--secondary-gradient);
+  padding: 2px;
+  /* Ring effect */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.expert-avatar img,
+.expert-avatar span {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: var(--text-medium);
+  background: #fff;
+}
+
+.status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  z-index: 2;
+}
+
+.status-dot.online {
+  background: var(--success-color);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.status-dot.offline {
+  background: var(--text-light);
+}
+
+.header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.name-row h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.badge-container {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.verified-badge {
+  color: #22c55e;
+  font-size: 0.9rem;
+  filter: drop-shadow(0 1px 2px rgba(34, 197, 94, 0.3));
+}
+
+.linkedin-badge {
+  color: #0077B5;
+  font-size: 0.9rem;
+}
+
+.expert-title {
+  font-size: 0.825rem;
+  color: var(--text-medium);
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.expert-country {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 0.25rem;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.busy-message {
+  font-size: 0.7rem;
+  color: var(--warning-color);
+  background: rgba(245, 158, 11, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.4);
+  padding: 0.75rem 0.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.125rem;
+}
+
+.stat-item svg {
+  color: var(--warning-color);
+  /* Star color usually */
+  font-size: 0.875rem;
+  margin-bottom: 2px;
+}
+
+.stat-item:nth-child(2) svg {
+  color: #8B5CF6;
+}
+
+/* Sessions icon color */
+.stat-item:nth-child(3) svg {
+  color: #3B82F6;
+}
+
+/* Years icon color */
+
+.stat-value {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.6875rem;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+
+/* Tags */
+.expert-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  min-height: 26px;
+  /* consistent height */
+}
+
+.tag-chip {
+  padding: 0.25rem 0.625rem;
+  border-radius: 6px;
+  background: rgba(147, 106, 173, 0.08);
+  /* Primary color low opacity */
+  color: #7A5390;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tag-chip.more {
+  background: transparent;
+  color: var(--text-light);
+  padding-left: 0;
+}
+
+/* Card Footer */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.rate-display {
+  display: flex;
+  align-items: baseline;
+  color: var(--text-dark);
+}
+
+.rate-display svg {
+  font-size: 0.875rem;
+  margin-right: 1px;
+  color: var(--text-medium);
+}
+
+.rate-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.rate-unit {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-left: 2px;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.connect-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(147, 106, 173, 0.25);
+}
+
+.connect-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(147, 106, 173, 0.35);
+}
+
+.connect-button:disabled {
+  background: #E5E7EB;
+  color: #9CA3AF;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.chat-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  border: none;
+  color: var(--text-medium);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chat-button:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-dark);
+}
+
+/* Skeleton Loading - Refined */
+.expert-card.skeleton {
+  background: #fff;
+  border: 1px solid #eee;
+}
+
+.skeleton-bg {
+  background: linear-gradient(90deg, #f0f0f0 25%, #f8f8f8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 576px) {
+  .expert-card {
+    padding: 1rem;
+  }
+
+  .connect-button {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+  }
+
+  .expert-avatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  .expert-avatar img,
+  .expert-avatar span {
+    font-size: 1rem;
+  }
+
+  .name-row h3 {
+    font-size: 0.9375rem;
+  }
+}
+
+.expert-card-circular:hover {
+  transform: translateY(-3px);
+}
+
+.expert-avatar-circular {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 1.125rem;
+  overflow: visible;
+  border: 2px solid var(--white);
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.expert-avatar-circular.online {
+  border-color: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.expert-avatar-circular img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.expert-info-circular {
+  margin-top: 0.5rem;
+}
+
+.expert-info-circular h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-bottom: 0.125rem;
+}
+
+.expert-rate-circular {
+  font-size: 0.75rem;
+  color: var(--success);
+  font-weight: 500;
+}
+
+/* Regular Expert Card */
+
+.expert-card {
+  display: block;
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.875rem;
+  border: 1px solid #e5e7eb;
+  transition: all 200ms ease;
+  text-decoration: none;
+}
+
+.expert-card:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.expert-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Card Header */
+.card-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.expert-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #936AAD 0%, #a881c2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.expert-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.status-dot.online {
+  background: #22c55e;
+}
+
+.status-dot.offline {
+  background: #9ca3af;
+}
+
+.header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.name-row h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-container {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.verified-badge {
+  color: #22c55e;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.linkedin-badge {
+  color: #0077b5;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.availability-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.availability-pill .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.availability-pill.online {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #16a34a;
+}
+
+.availability-pill.online .dot {
+  background: #22c55e;
+}
+
+.availability-pill.offline {
+  background: rgba(156, 163, 175, 0.1);
+  border: 1px solid rgba(156, 163, 175, 0.3);
+  color: #9ca3af;
+}
+
+.availability-pill.offline .dot {
+  background: #9ca3af;
+}
+
+.availability-pill.busy {
+  background: rgba(251, 146, 60, 0.1);
+  border: 1px solid rgba(251, 146, 60, 0.3);
+  color: #ea580c;
+}
+
+.availability-pill.busy .dot {
+  background: #f97316;
+}
+
+.busy-message {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.2rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.5625rem;
+  font-weight: 500;
+  background: rgba(251, 146, 60, 0.098);
+  color: #ea580c;
+}
+
+.available-message {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.2rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.5625rem;
+  font-weight: 500;
+  background: rgba(114, 251, 60, 0.05);
+  color: #09e42a;
+}
+
+.expert-country {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.125rem;
+}
+
+.expert-country .flag-emoji {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+/* Card Body */
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.375rem;
+}
+
+.expert-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.expert-card .stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-top: 0.25rem;
+}
+
+.expert-card .stat-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0 !important;
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.expert-card .stat-item svg {
+  color: #f59e0b;
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+  position: relative;
+  top: 2px;
+}
+
+.expert-card .stat-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.expert-card .stat-label {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.expert-bio {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.expert-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.tag-chip {
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.tag-chip.more {
+  background: #eef2ff;
+  color: #936AAD;
+}
+
+/* Card Footer */
+.expert-card .card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.expert-card .button-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.expert-card .rate-display {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  padding: 0 !important;
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+.expert-card .rate-display svg {
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.expert-card .rate-value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.expert-card .rate-unit {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-weight: 400;
+  margin-left: 1px;
+}
+
+.expert-card .connect-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 6px;
+  background: #7a5590;
+  color: white;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  border: none;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.expert-card .connect-button svg {
+  font-size: 0.875rem;
+}
+
+.expert-card .connect-button:hover {
+  background: #4338ca;
+}
+
+.expert-card .chat-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.expert-card .chat-button:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.expert-card .chat-button svg {
+  font-size: 0.875rem;
+}
+
+.expert-card .refresh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.expert-card .refresh-button:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.expert-card .refresh-button svg {
+  font-size: 0.875rem;
+}
+
+@media (max-width: 992px) {
+  .expert-card .stats-grid {
+    gap: 0.375rem 0.625rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .expert-card {
+    padding: 0.75rem;
+  }
+
+  .expert-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 0.9375rem;
+  }
+
+  .expert-card .card-footer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .expert-card .rate-display {
+    flex-shrink: 0;
+  }
+
+  .expert-card .connect-button {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .expert-card .connect-button svg {
+    font-size: 0.75rem;
+  }
+}
+
+/* Skeleton Loading Styles for Expert Cards */
+.expert-card.skeleton {
+  pointer-events: none;
+}
+
+.expert-card.skeleton .expert-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.expert-card.skeleton .expert-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.expert-card.skeleton .expert-info {
+  flex: 1;
+}
+
+.expert-card.skeleton .expert-details {
+  margin-bottom: 1rem;
+}
+
+.expert-card.skeleton .expert-skills {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.expert-card.skeleton .expert-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}

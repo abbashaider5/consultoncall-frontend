@@ -1,0 +1,407 @@
+.call-history-page {
+  padding: 2rem 0;
+  min-height: calc(100vh - 70px);
+}
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.page-header p {
+  color: var(--gray-500);
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  color: var(--gray-300);
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  font-size: 1.25rem;
+  color: var(--gray-700);
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: var(--gray-500);
+}
+
+/* Calls Table */
+.calls-table-wrapper {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.calls-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.calls-table th,
+.calls-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.calls-table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-500);
+  background: var(--gray-50);
+}
+
+.calls-table tbody tr:hover {
+  background: var(--gray-50);
+}
+
+.calls-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Call User */
+.call-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.call-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.call-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.call-user-name {
+  font-weight: 500;
+  color: var(--gray-900);
+}
+
+.call-user-title {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+/* Call DateTime */
+.call-datetime {
+  display: flex;
+  flex-direction: column;
+}
+
+.call-time {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+/* Call Duration */
+.call-duration {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--gray-600);
+}
+
+/* Text Colors */
+.text-success {
+  color: var(--success);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.text-success .token-icon {
+  color: var(--success);
+  font-size: 1rem;
+}
+
+.text-danger {
+  color: var(--danger);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.text-danger .token-icon {
+  color: var(--danger);
+  font-size: 1rem;
+}
+
+.token-icon {
+  font-size: 1rem;
+  color: var(--success);
+  vertical-align: middle;
+}
+
+.text-muted {
+  color: var(--gray-400);
+}
+
+/* Rate Button */
+.rate-btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rate-btn:hover {
+  background: #d97706;
+}
+
+/* Call Rating */
+.call-rating {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.star-icon {
+  color: var(--gray-300);
+}
+
+.star-icon.filled {
+  color: var(--accent);
+  fill: var(--accent);
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.page-info {
+  font-size: 0.875rem;
+  color: var(--gray-600);
+}
+
+/* Rating Modal */
+.rating-stars {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1.5rem 0;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: var(--gray-300);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.star-btn:hover,
+.star-btn.active {
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+.star-btn.active svg {
+  fill: var(--accent);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--gray-400);
+  cursor: pointer;
+}
+
+.close-btn:hover {
+  color: var(--gray-600);
+}
+
+/* No Data */
+.no-data {
+  text-align: center;
+  padding: 2rem;
+  color: var(--gray-500);
+}
+
+/* Mobile Call Cards */
+.calls-cards {
+  display: none;
+  gap: 1rem;
+}
+
+.call-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+  border: 1px solid var(--gray-100);
+}
+
+.call-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.call-card-header .call-user {
+  flex: 1;
+}
+
+.call-status {
+  flex-shrink: 0;
+}
+
+.call-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.call-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--gray-50);
+}
+
+.call-detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: 500;
+  color: var(--gray-600);
+  font-size: 0.875rem;
+}
+
+.detail-value {
+  font-weight: 600;
+  color: var(--gray-900);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.detail-icon {
+  font-size: 0.875rem;
+  color: var(--gray-500);
+}
+
+.rupee-icon {
+  font-size: 0.875rem;
+  color: var(--success);
+}
+
+.call-card .text-success {
+  color: var(--success) !important;
+}
+
+.call-card .text-danger {
+  color: var(--danger) !important;
+}
+
+.call-card .rate-btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* Responsive adjustments for mobile cards */
+@media (max-width: 480px) {
+  .calls-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem; /* Increased spacing between cards */
+  }
+  
+  .call-card {
+    padding: 1.25rem; /* Increased padding */
+  }
+  
+  .call-card-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+  
+  .call-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .detail-value {
+    font-size: 1rem; /* Larger amounts */
+    font-weight: 700;
+  }
+  
+  .detail-value.amount-positive {
+    color: #10b981 !important; /* Green for earnings */
+  }
+  
+  .detail-value.amount-negative {
+    color: #ef4444 !important; /* Red for charges */
+  }
+}
+
+@media (max-width: 768px) {
+  .calls-table-wrapper {
+    display: none;
+  }
+  
+  .calls-cards {
+    display: block;
+  }
+}
+
+@media (min-width: 769px) {
+  .calls-table-wrapper {
+    display: block;
+  }
+  
+  .calls-cards {
+    display: none;
+  }
+}
+

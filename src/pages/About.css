@@ -1,0 +1,256 @@
+.about-page {
+  min-height: 100vh;
+  background: #f9fafb;
+}
+
+.about-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.hero-section {
+  text-align: center;
+  padding: 4rem 1rem 3rem;
+  background: linear-gradient(135deg, #936AAD 0%, #a881c2 100%);
+  color: white;
+  border-radius: 24px;
+  margin-bottom: 3rem;
+  box-shadow: 0 20px 60px rgba(147, 106, 173, 0.3);
+}
+
+.hero-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0 0 1rem;
+}
+
+.hero-subtitle {
+  font-size: 1.125rem;
+  opacity: 0.95;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.mission-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-bottom: 4rem;
+}
+
+.mission-card {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.mission-card h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #936AAD;
+  margin: 0 0 1rem;
+}
+
+.mission-card p {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: #4b5563;
+  margin: 0;
+}
+
+.features-section,
+.how-it-works-section {
+  margin-bottom: 4rem;
+}
+
+.section-title {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  color: #111827;
+  margin: 0 0 2.5rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.75rem;
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.feature-card:hover {
+  border-color: #936AAD;
+  box-shadow: 0 8px 24px rgba(147, 106, 173, 0.15);
+  transform: translateY(-4px);
+}
+
+.feature-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(147, 106, 173, 0.1);
+  color: #936AAD;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  margin: 0 auto 1rem;
+}
+
+.feature-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.5rem;
+}
+
+.feature-desc {
+  font-size: 0.9375rem;
+  color: #6b7280;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 2rem;
+}
+
+.step-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.75rem;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+  position: relative;
+}
+
+.step-number {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #936AAD, #a881c2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 auto 1rem;
+}
+
+.step-card h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.5rem;
+}
+
+.step-card p {
+  font-size: 0.9375rem;
+  color: #6b7280;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.cta-section {
+  text-align: center;
+  padding: 4rem 1rem;
+  background: linear-gradient(135deg, rgba(147, 106, 173, 0.05), rgba(147, 106, 173, 0.02));
+  border-radius: 20px;
+  margin-bottom: 2rem;
+}
+
+.cta-section h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 0.75rem;
+}
+
+.cta-section p {
+  font-size: 1.125rem;
+  color: #6b7280;
+  margin: 0 0 2rem;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.cta-btn {
+  padding: 0.875rem 2rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.3s;
+  display: inline-block;
+}
+
+.cta-btn.primary {
+  background: linear-gradient(135deg, #936AAD, #a881c2);
+  color: white;
+  border: 2px solid transparent;
+}
+
+.cta-btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(147, 106, 173, 0.4);
+}
+
+.cta-btn.secondary {
+  background: white;
+  color: #936AAD;
+  border: 2px solid #936AAD;
+}
+
+.cta-btn.secondary:hover {
+  background: #936AAD;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(147, 106, 173, 0.3);
+}
+
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .features-grid,
+  .steps-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cta-section h2 {
+    font-size: 1.5rem;
+  }
+
+  .cta-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
