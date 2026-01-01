@@ -196,10 +196,16 @@ export const SocketProvider = ({ children }) => {
       console.log('✅ Incoming call state set and ringtone started');
     });
 
-    // Call accepted (for users)
+    // Call accepted (for users) - transition from ringing to accepted
     newSocket.on('call_accepted', (data) => {
       console.log('✅ Call accepted:', data);
-      setActiveCall(prev => prev ? { ...prev, status: 'accepted' } : null);
+      // Create activeCall if it doesn't exist (user's ringing is in CallModal local state)
+      setActiveCall(prev => prev ? { ...prev, status: 'accepted' } : {
+        callId: data.callId,
+        expertId: data.expertId,
+        status: 'accepted',
+        startTime: null
+      });
       stopIncomingCallSound();
     });
 
@@ -314,16 +320,8 @@ export const SocketProvider = ({ children }) => {
 
     console.log('socket emit call:initiate', payload);
 
-    // Track outgoing call locally so call_accepted/call_connected can transition UI
-    if (payload.callId) {
-      setActiveCall({
-        callId: payload.callId,
-        userId: payload.userId,
-        expertId: payload.expertId,
-        status: 'ringing',
-        startTime: null
-      });
-    }
+    // DO NOT set activeCall here for user (causes premature disappear)
+    // User CallModal maintains its own local state until accepted
 
     return new Promise((resolve) => {
       socket.emit('call:initiate', payload, (response) => {
@@ -349,17 +347,17 @@ export const SocketProvider = ({ children }) => {
       console.error('Failed to accept call in backend:', e);
     }
 
+    // Emit accept to socket server (will notify user)
     socket.emit('accept_call', { callId });
-    // In this app, acceptance implies call is "connected" for timer/billing
-    socket.emit('call_connected', { callId });
 
+    // Clear incoming, set active as accepted (not connected yet - wait for WebRTC)
     setIncomingCall(null);
     setActiveCall({
       callId,
       userId,
       expertId,
-      status: 'connected',
-      startTime: Date.now(),
+      status: 'accepted',
+      startTime: null,
       callerInfo
     });
 

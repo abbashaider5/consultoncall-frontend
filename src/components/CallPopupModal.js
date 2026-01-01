@@ -23,10 +23,11 @@ const CallPopupModal = () => {
   // This popup is dedicated to the expert-side incoming/active call UI.
   const isExpertUser = user?.role === 'expert';
 
+  // CRITICAL FIX: incomingCall takes priority; if it exists, show incoming modal
   const isIncoming = Boolean(incomingCall);
-  const callData = isIncoming ? incomingCall : activeCall;
+  const callData = incomingCall || activeCall;
 
-  const [callStatus, setCallStatus] = useState(isIncoming ? 'ringing' : 'connected');
+  const [callStatus, setCallStatus] = useState('ringing');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
@@ -108,6 +109,19 @@ const CallPopupModal = () => {
     };
   }, [callStatus]);
 
+  // Sync callStatus with activeCall status changes
+  useEffect(() => {
+    if (activeCall) {
+      if (activeCall.status === 'accepted') {
+        setCallStatus('connecting');
+      } else if (activeCall.status === 'connected') {
+        setCallStatus('connected');
+      }
+    } else if (incomingCall) {
+      setCallStatus('ringing');
+    }
+  }, [activeCall, incomingCall]);
+
   // Accept/reject handlers
   const handleAccept = () => {
     if (!incomingCall || !expert) return;
@@ -117,7 +131,7 @@ const CallPopupModal = () => {
       expertId: expert._id || expert.id,
       callerInfo: incomingCall.callerInfo
     });
-    setCallStatus('connected');
+    // Don't manually set connected - wait for socket event
     toast.success('Call accepted');
   };
   const handleReject = () => {

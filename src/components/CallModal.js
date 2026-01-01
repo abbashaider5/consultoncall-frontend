@@ -65,6 +65,23 @@ const CallModal = ({ expert, onClose }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCall]);
 
+  // Listen for call_accepted event (when expert accepts)
+  useEffect(() => {
+    const handleCallAccepted = (data) => {
+      if (data.callId === callId) {
+        console.log('✅ Expert accepted the call:', data);
+        setCallStatus('connecting');
+        setupPeerConnection();
+      }
+    };
+
+    socket?.on('call_accepted', handleCallAccepted);
+
+    return () => {
+      socket?.off('call_accepted', handleCallAccepted);
+    };
+  }, [callId, socket, setupPeerConnection]);
+
   // Listen for call ended event
   useEffect(() => {
     const handleCallEnded = () => {
@@ -73,12 +90,34 @@ const CallModal = ({ expert, onClose }) => {
       onClose();
     };
 
+    const handleCallRejected = (data) => {
+      if (data.callId === callId) {
+        console.log('❌ Expert rejected the call:', data);
+        toast.error(data.reason || 'Expert declined the call');
+        cleanup();
+        onClose();
+      }
+    };
+
+    const handleCallTimeout = (data) => {
+      if (data.callId === callId) {
+        console.log('⏱️ Call timeout:', data);
+        toast.info('Expert did not respond');
+        cleanup();
+        onClose();
+      }
+    };
+
     socket?.on('call_ended', handleCallEnded);
+    socket?.on('call_rejected', handleCallRejected);
+    socket?.on('call_timeout', handleCallTimeout);
 
     return () => {
       socket?.off('call_ended', handleCallEnded);
+      socket?.off('call_rejected', handleCallRejected);
+      socket?.off('call_timeout', handleCallTimeout);
     };
-  }, [socket, onClose]);
+  }, [socket, onClose, callId]);
 
   // Initialize call
   useEffect(() => {
