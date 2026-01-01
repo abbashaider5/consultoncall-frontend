@@ -61,16 +61,32 @@ const CallModal = ({ expert, onClose }) => {
 
     pc.ontrack = (event) => {
       remoteStreamRef.current = event.streams[0];
-      const audio = document.getElementById('remoteAudio');
-      if (audio) {
-        audio.srcObject = event.streams[0];
-        audio.play().catch(err => console.warn('Audio play failed:', err));
+      
+      // Create or get remote audio element
+      let audio = document.getElementById('remoteAudio');
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = 'remoteAudio';
+        audio.autoPlay = true;
+        audio.playsInline = true;
+        document.body.appendChild(audio);
+      }
+      
+      audio.srcObject = event.streams[0];
+      audio.play().catch(err => {
+        console.warn('Remote audio play failed:', err);
+        // Try again after user interaction
+        const playAudio = () => {
+          audio.play().catch(e => console.warn('Still failed to play audio:', e));
+          document.removeEventListener('click', playAudio);
+        };
+        document.addEventListener('click', playAudio);
+      });
 
-        // Handle speaker toggle
-        if (typeof audio.setSinkId === 'function' && isSpeakerOn) {
-          // Need device ID enumeration to specific set output, simpler to just rely on system default for now or basic output
-          // This is complex due to browser restrictions without specific device permission
-        }
+      // Handle speaker toggle
+      if (typeof audio.setSinkId === 'function' && isSpeakerOn) {
+        // Need device ID enumeration to specific set output, simpler to just rely on system default for now or basic output
+        // This is complex due to browser restrictions without specific device permission
       }
     };
 

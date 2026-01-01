@@ -159,15 +159,29 @@ const ActiveCallModal = () => {
     pc.ontrack = (event) => {
       console.log('📡 Received remote track', event.streams[0]);
       remoteStreamRef.current = event.streams[0];
-      const audio = document.getElementById('remoteAudio');
-      if (audio) {
-        audio.srcObject = event.streams[0];
-        // Explicitly play to bypass browser autoplay restrictions
-        audio.play().catch(err => console.warn('Audio play failed:', err));
-        console.log('🎵 Assigned remote stream to audio element and started playback');
-      } else {
-        console.warn('❌ Remote audio element not found');
+      
+      // Create or get remote audio element
+      let audio = document.getElementById('remoteAudio');
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.id = 'remoteAudio';
+        audio.autoPlay = true;
+        audio.playsInline = true;
+        document.body.appendChild(audio);
       }
+      
+      audio.srcObject = event.streams[0];
+      // Explicitly play to bypass browser autoplay restrictions
+      audio.play().catch(err => {
+        console.warn('Remote audio play failed:', err);
+        // Try again after user interaction
+        const playAudio = () => {
+          audio.play().catch(e => console.warn('Still failed to play audio:', e));
+          document.removeEventListener('click', playAudio);
+        };
+        document.addEventListener('click', playAudio);
+      });
+      console.log('🎵 Assigned remote stream to audio element and started playback');
     };
 
     // Handle ICE candidates
@@ -301,11 +315,36 @@ const ActiveCallModal = () => {
     }
   };
 
-  const toggleSpeaker = () => {
-    // For now, this is visual only - browser APIs don't allow direct speaker control
-    // In a real implementation, this would switch audio output device
-    setIsSpeakerOn(!isSpeakerOn);
-    toast.info(isSpeakerOn ? 'Switched to earpiece' : 'Switched to speaker');
+  const toggleSpeaker = async () => {
+    try {
+      // Try to enumerate audio output devices
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
+        
+        if (audioOutputs.length > 1) {
+          // If multiple outputs available, try to switch
+          const audio = document.getElementById('remoteAudio');
+          if (audio && typeof audio.setSinkId === 'function') {
+            // Toggle between first two outputs
+            const currentSinkId = audio.sinkId || 'default';
+            const nextOutput = audioOutputs.find(d => d.deviceId !== currentSinkId) || audioOutputs[0];
+            await audio.setSinkId(nextOutput.deviceId);
+            setIsSpeakerOn(!isSpeakerOn);
+            toast.success(`Switched to ${nextOutput.label || 'audio output'}`);
+            return;
+          }
+        }
+      }
+      
+      // Fallback: just visual toggle with toast
+      setIsSpeakerOn(!isSpeakerOn);
+      toast.info(isSpeakerOn ? 'Switched to earpiece' : 'Switched to speaker');
+    } catch (error) {
+      console.warn('Speaker toggle failed:', error);
+      setIsSpeakerOn(!isSpeakerOn);
+      toast.info(isSpeakerOn ? 'Switched to earpiece' : 'Switched to speaker');
+    }
   };
 
   const formatDuration = (seconds) => {
@@ -367,6 +406,47 @@ const ActiveCallModal = () => {
     };
   }, [activeCall, handleWebRTCOffer, handleWebRTCAnswer, handleWebRTCIce]);
 
+  // Call Safety: Auto-end call on tab close, visibility change, or socket disconnect
+  useEffect(() => {
+    if (!activeCall) return;
+
+    const handleBeforeUnload = (e) => {
+      // End call when tab is closed
+      if (activeCall && callStatus === 'connected') {
+        endCall(activeCall.callId);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      // Optional: Could pause/resume based on visibility, but for now just log
+      if (document.hidden) {
+        console.log('Tab hidden - call continues');
+      } else {
+        console.log('Tab visible - call active');
+      }
+    };
+
+    const handleSocketDisconnect = () => {
+      console.log('Socket disconnected - ending call for safety');
+      if (activeCall && callStatus === 'connected') {
+        handleEndCall();
+      }
+    };
+
+    // Listen for socket disconnect
+    socket?.on('disconnect', handleSocketDisconnect);
+
+    // Add event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      socket?.off('disconnect', handleSocketDisconnect);
+    };
+  }, [activeCall, callStatus, socket, endCall, handleEndCall]);
+
 
   // Only render once the call has been accepted (WebRTC/setup phase) or connected.
   if (!activeCall || !['accepted', 'connected'].includes(activeCall.status) || !isVisible || forceClose) {
@@ -399,27 +479,29 @@ const ActiveCallModal = () => {
   }
 
   return (
-    <div className="call-modal-overlay">
-      <div className="call-modal">
-        <div className="call-info">
-          <div className="call-avatar">
+    <div className="call-modal-overlay stage-c">
+      <div className="call-modal-content">
+        <div className="expert-display minimized">
+          <div className="expert-avatar">
             {remoteUser?.avatar ? (
               <img src={remoteUser.avatar} alt={remoteUser.name} />
             ) : (
-              <span>
+              <span className="initials">
                 {remoteUser?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}
               </span>
             )}
           </div>
-          <h2>{remoteUser.name}</h2>
-          <p className="call-title">
-            {user?.role === 'expert' ? 'Client Call' : 'Expert Consultation'}
-          </p>
-          {user?.role === 'user' && expert && (
-            <p className="call-rate">
-              <FontAwesomeIcon icon={faDollarSign} className="token-icon" /> ₹{expert.tokensPerMinute}/min
+          <div className="expert-details-text">
+            <h2>{remoteUser.name}</h2>
+            <p className="specialization">
+              {user?.role === 'expert' ? 'Client Call' : 'Expert Consultation'}
             </p>
-          )}
+            {user?.role === 'user' && expert && (
+              <p className="call-rate">
+                <FontAwesomeIcon icon={faDollarSign} className="token-icon" /> ₹{expert.tokensPerMinute}/min
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="call-status">
@@ -436,29 +518,40 @@ const ActiveCallModal = () => {
           )}
         </div>
 
-        <div className="call-actions">
+        <div className="call-controls-footer">
           <button
-            className={`action-btn mute-btn ${isMuted ? 'active' : ''}`}
+            className={`control-btn ${isMuted ? 'active-state' : ''}`}
             onClick={toggleMute}
             title={isMuted ? 'Unmute' : 'Mute'}
             disabled={callStatus !== 'connected'}
           >
-            {isMuted ? <FontAwesomeIcon icon={faMicrophoneSlash} /> : <FontAwesomeIcon icon={faMicrophone} />}
+            <div className="icon-circle">
+              {isMuted ? <FontAwesomeIcon icon={faMicrophoneSlash} /> : <FontAwesomeIcon icon={faMicrophone} />}
+            </div>
+            <span className="btn-label">{isMuted ? 'Unmute' : 'Mute'}</span>
           </button>
+
           <button
-            className={`action-btn speaker-btn ${isSpeakerOn ? 'active' : ''}`}
+            className={`control-btn ${isSpeakerOn ? 'active-state' : ''}`}
             onClick={toggleSpeaker}
             title={isSpeakerOn ? 'Switch to earpiece' : 'Switch to speaker'}
             disabled={callStatus !== 'connected'}
           >
-            <FontAwesomeIcon icon={faVolumeUp} />
+            <div className="icon-circle">
+              <FontAwesomeIcon icon={faVolumeUp} />
+            </div>
+            <span className="btn-label">Speaker</span>
           </button>
-          <button className="action-btn end-btn" onClick={handleEndCall} title="End Call">
-            <FontAwesomeIcon icon={faPhoneSlash} />
+
+          <button className="control-btn end-call-btn" onClick={handleEndCall} title="End Call">
+            <div className="icon-circle">
+              <FontAwesomeIcon icon={faPhoneSlash} />
+            </div>
+            <span className="btn-label">End</span>
           </button>
         </div>
 
-        <audio id="remoteAudio" autoPlay playsInline />
+        <audio id="remoteAudio" autoPlay playsInline style={{ display: 'none' }} />
         {/* Hidden local audio for debugging */}
         <audio id="localAudio" style={{ display: 'none' }} autoPlay muted playsInline />
       </div>
