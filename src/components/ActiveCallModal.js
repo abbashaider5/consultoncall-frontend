@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { faDollarSign, faMicrophone, faMicrophoneSlash, faPhoneSlash, faVolumeUp } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMicrophone, faMicrophoneSlash, faPhoneSlash, faVolumeUp, faDollarSign } from '@fortawesome/free-solid-svg-icons';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -81,7 +81,7 @@ const ActiveCallModal = () => {
   // Fetch remote user info
   useEffect(() => {
     const fetchRemoteUser = async () => {
-      if (!activeCall) return;
+      if (!activeCall || !user?.role) return;
 
       // Use caller info from activeCall if available (from socket payload)
       if (activeCall.callerInfo && activeCall.callerInfo.name) {
@@ -94,21 +94,21 @@ const ActiveCallModal = () => {
 
       // Fallback to API call
       try {
-        const remoteUserId = user.role === 'expert' ? activeCall.userId : activeCall.expertId;
+        const remoteUserId = user?.role === 'expert' ? activeCall.userId : activeCall.expertId;
         const res = await axios.get(`/api/users/${remoteUserId}`);
         setRemoteUser(res.data);
       } catch (error) {
         console.error('Fetch remote user error:', error);
         // Set fallback data
         setRemoteUser({
-          name: user.role === 'expert' ? (activeCall.callerName || 'Caller') : (activeCall.expertName || 'Expert'),
+          name: user?.role === 'expert' ? (activeCall.callerName || 'Caller') : (activeCall.expertName || 'Expert'),
           avatar: null
         });
       }
     };
 
     fetchRemoteUser();
-  }, [activeCall, user.role]);
+  }, [activeCall, user?.role]);
 
   const setupPeerConnection = useCallback(async () => {
     if (!activeCall || peerConnectionRef.current) {
@@ -188,7 +188,7 @@ const ActiveCallModal = () => {
     };
 
     // Create and send offer (caller initiates)
-    if (user.role === 'user') {
+    if (user?.role === 'user') {
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -198,7 +198,7 @@ const ActiveCallModal = () => {
         console.error('Create offer error:', error);
       }
     }
-  }, [activeCall, user.role, sendOffer, sendIceCandidate, markCallConnected]);
+  }, [activeCall, user?.role, sendOffer, sendIceCandidate, markCallConnected]);
 
   const handleWebRTCOffer = useCallback(async (data) => {
     if (!activeCall || data.callId !== activeCall.callId) return;
@@ -252,10 +252,10 @@ const ActiveCallModal = () => {
     setIsVisible(false);
     setForceClose(true);
     // Update balance immediately if we can estimate it
-    if (user.role === 'user' && activeCall) {
+    if (user?.role === 'user' && activeCall) {
       const estimatedMinutes = Math.max(1, Math.ceil(duration / 60));
       const estimatedTokens = estimatedMinutes * activeCall.tokensPerMinute;
-      const newBalance = Math.max(0, user.tokens - estimatedTokens);
+      const newBalance = Math.max(0, (user?.tokens || 0) - estimatedTokens);
       updateTokens(newBalance);
     }
     try {
@@ -270,11 +270,11 @@ const ActiveCallModal = () => {
         const token = localStorage.getItem('token');
         try {
           const res = await axios.put(`/api/calls/end/${activeCall.callId}`, {
-            initiatedBy: user.role
+            initiatedBy: user?.role
           }, {
             headers: { 'x-auth-token': token }
           });
-          if (res.data.success && user.role === 'user') {
+          if (res.data.success && user?.role === 'user') {
             updateTokens(res.data.newBalance);
             toast.success(`Call ended. Duration: ${res.data.call.minutes} min, Cost: ₹${res.data.call.tokensSpent}`);
           } else if (!res.data.success) {
@@ -368,10 +368,8 @@ const ActiveCallModal = () => {
   }, [activeCall, handleWebRTCOffer, handleWebRTCAnswer, handleWebRTCIce]);
 
 
-  // Only render if activeCall exists and status is 'ringing' or 'connected'
-  if (!activeCall || !['ringing', 'connected'].includes(activeCall.status) || !isVisible || forceClose) {
-    // Extra cleanup to prevent repeated popups
-    resetAll();
+  // Only render once the call has been accepted (WebRTC/setup phase) or connected.
+  if (!activeCall || !['accepted', 'connected'].includes(activeCall.status) || !isVisible || forceClose) {
     return null;
   }
 
@@ -415,9 +413,9 @@ const ActiveCallModal = () => {
           </div>
           <h2>{remoteUser.name}</h2>
           <p className="call-title">
-            {user.role === 'expert' ? 'Client Call' : 'Expert Consultation'}
+            {user?.role === 'expert' ? 'Client Call' : 'Expert Consultation'}
           </p>
-          {user.role === 'user' && expert && (
+          {user?.role === 'user' && expert && (
             <p className="call-rate">
               <FontAwesomeIcon icon={faDollarSign} className="token-icon" /> ₹{expert.tokensPerMinute}/min
             </p>

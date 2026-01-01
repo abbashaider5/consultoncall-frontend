@@ -1,23 +1,24 @@
 import { Route, Routes, useLocation } from 'react-router-dom';
 import './App.css';
+import ActiveCallModal from './components/ActiveCallModal';
 import CallPopupModal from './components/CallPopupModal';
 import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
+import About from './pages/About';
 import AdminDashboard from './pages/AdminDashboard';
 import BuyTokens from './pages/BuyTokens';
 import CallHistory from './pages/CallHistory';
+import Chat from './pages/Chat';
 import EditProfile from './pages/EditProfile';
-import TransactionHistory from './pages/TransactionHistory';
 import ExpertDashboard from './pages/ExpertDashboard';
 import ExpertEarnings from './pages/ExpertEarnings';
 import ExpertProfile from './pages/ExpertProfile';
 import Home from './pages/Home';
-import About from './pages/About';
-import Chat from './pages/Chat';
 import Login from './pages/Login';
 import OAuthCallback from './pages/OAuthCallback';
 import Register from './pages/Register';
 import RegisterExpert from './pages/RegisterExpert';
+import TransactionHistory from './pages/TransactionHistory';
 import UserDashboard from './pages/UserDashboard';
 
 // Routes that should hide the main Navbar (they have their own sidebar)
@@ -34,6 +35,8 @@ function App() {
       {showNavbar && <Navbar />}
       {/* Global Call Popup Modal */}
       <CallPopupModal />
+      {/* Global Active Call (WebRTC) Modal */}
+      <ActiveCallModal />
       <main className={`main-content ${!showNavbar ? 'no-navbar' : ''}`}>
         <Routes>
           <Route path="/" element={<Home />} />

@@ -30,11 +30,31 @@ const CallModal = ({ expert, onClose }) => {
   const [callId, setCallId] = useState(null);
   const [showChat, setShowChat] = useState(false); // Placeholder for chat toggle logic
 
+  const callStatusRef = useRef(callStatus);
+  const callIdRef = useRef(callId);
+  const ringingTimeoutRef = useRef(null);
+
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const timerRef = useRef(null);
   const hasStartedCallRef = useRef(false);
+
+  useEffect(() => {
+    callStatusRef.current = callStatus;
+  }, [callStatus]);
+
+  useEffect(() => {
+    callIdRef.current = callId;
+  }, [callId]);
+
+  // Clear ringing timeout once we leave ringing state
+  useEffect(() => {
+    if (callStatus !== 'ringing' && ringingTimeoutRef.current) {
+      clearTimeout(ringingTimeoutRef.current);
+      ringingTimeoutRef.current = null;
+    }
+  }, [callStatus]);
 
   // Setup WebRTC handlers
   useEffect(() => {
@@ -124,9 +144,9 @@ const CallModal = ({ expert, onClose }) => {
   useEffect(() => {
     startCall();
     return () => {
-      // End call if it's still active when component unmounts
-      if (callId && (callStatus === 'ringing' || callStatus === 'connecting' || callStatus === 'connected')) {
-        endCall(callId);
+      if (ringingTimeoutRef.current) {
+        clearTimeout(ringingTimeoutRef.current);
+        ringingTimeoutRef.current = null;
       }
       cleanup();
     };
@@ -182,6 +202,18 @@ const CallModal = ({ expert, onClose }) => {
 
       setCallStatus('ringing');
 
+      // 60s timeout for ringing state (must use refs to avoid stale closures)
+      if (ringingTimeoutRef.current) {
+        clearTimeout(ringingTimeoutRef.current);
+      }
+      ringingTimeoutRef.current = setTimeout(() => {
+        if (callStatusRef.current === 'ringing' && callIdRef.current === newCallId) {
+          console.log('⏰ Call timeout - no answer after 60s');
+          toast.info('Expert did not answer');
+          handleEndCall();
+        }
+      }, 60000);
+
       // CRITICAL FIX: Pass data object properly
       console.log('📡 Emitting call:initiate to socket server...', { callId: newCallId, expertId: expert._id });
       const ack = await initiateCall({
@@ -207,16 +239,6 @@ const CallModal = ({ expert, onClose }) => {
 
       console.log('✅ Call initiated successfully');
 
-      // Set 60s timeout for ringing state
-      const ringingTimeout = setTimeout(() => {
-        if (callStatus === 'ringing') {
-          console.log('⏰ Call timeout - no answer after 60s');
-          toast.info('Expert did not answer');
-          handleEndCall();
-        }
-      }, 60000);
-
-      return () => clearTimeout(ringingTimeout);
     } catch (error) {
       console.error('❌ Start call error:', error);
       setCallStatus('failed');

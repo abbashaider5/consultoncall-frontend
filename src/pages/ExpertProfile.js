@@ -89,69 +89,91 @@ const ExpertProfile = () => {
     checkBlockStatus();
   }, [isAuthenticated, expert]);
 
-  // Close call modal when call becomes active
+  // Handoff: when call becomes active, close the outgoing (ringing) modal.
   useEffect(() => {
-    if (activeCall) {
+    if (activeCall && showCallModal) {
       setShowCallModal(false);
     }
-  }, [activeCall]);
+  }, [activeCall, showCallModal]);
 
   const handleCallClick = () => {
-    if (!isAuthenticated) {
-      toast.error('Please login to make a call');
-      navigate('/login');
-      return;
-    }
+    try {
+      if (!isAuthenticated) {
+        toast.error('Please login to make a call');
+        navigate('/login');
+        return;
+      }
 
-    if (user.role === 'expert') {
-      toast.error('Experts cannot make calls');
-      return;
-    }
+      if (!user?._id) {
+        toast.error('Please login again');
+        navigate('/login');
+        return;
+      }
 
-    const isOnline = expert.isOnline || isExpertOnline(expert._id);
-    if (!isOnline) {
-      toast.error('Expert is currently offline');
-      return;
-    }
+      if (!expert?._id) {
+        toast.error('Expert not available');
+        return;
+      }
 
-    if (expert.isBusy) {
-      toast.error('Expert is currently busy on another call');
-      return;
-    }
+      if (user?.role === 'expert') {
+        toast.error('Experts cannot make calls');
+        return;
+      }
 
-    const minTokens = expert.tokensPerMinute * 5;
-    if (user.tokens < minTokens) {
-      toast.error(`Minimum ₹${minTokens} required. Please add money.`);
-      navigate('/add-money');
-      return;
-    }
+      const isOnline = expert.isOnline || isExpertOnline(expert._id);
+      if (!isOnline) {
+        toast.error('Expert is currently offline');
+        return;
+      }
 
-    setShowCallModal(true);
+      if (expert.isBusy) {
+        toast.error('Expert is currently busy on another call');
+        return;
+      }
+
+      const minTokens = (expert.tokensPerMinute || 0) * 5;
+      if ((user.tokens || 0) < minTokens) {
+        toast.error(`Minimum ₹${minTokens} required. Please add money.`);
+        navigate('/add-money');
+        return;
+      }
+
+      setShowCallModal(true);
+    } catch (e) {
+      console.error('Call click failed:', e);
+      toast.error('Call failed – try again');
+    }
   };
 
   const handleChatClick = async () => {
-    if (!isAuthenticated) {
-      toast.error('Please login to chat');
-      navigate('/login');
-      return;
-    }
-
-    if (user.role === 'expert') {
-      toast.error('Experts cannot initiate chats');
-      return;
-    }
-
-    if (isBlocked) {
-      toast.error('You have blocked this user');
-      return;
-    }
-
     try {
+      if (!isAuthenticated) {
+        toast.error('Please login to chat');
+        navigate('/login');
+        return;
+      }
+
+      if (user?.role === 'expert') {
+        toast.error('Experts cannot initiate chats');
+        return;
+      }
+
+      if (isBlocked) {
+        toast.error('You have blocked this user');
+        return;
+      }
+
+      if (!expert?.user?._id) {
+        toast.error('Expert not available');
+        return;
+      }
+
       await axios.post('/api/chats/get-or-create', {
         participantId: expert.user._id
       });
       navigate(`/chat?expert=${expert.user._id}`);
     } catch (error) {
+      console.error('Chat click failed:', error);
       toast.error(error.response?.data?.message || 'Failed to start chat');
     }
   };
@@ -582,9 +604,9 @@ const ExpertProfile = () => {
         <ChatWindow
           isOpen={showChat}
           onClose={() => setShowChat(false)}
-          recipientId={expert._id || expert.id}
-          recipientName={expert.user.name}
-          recipientAvatar={expert.user.avatar}
+          recipientId={expert.user?._id || expert._id || expert.id}
+          recipientName={expert.user?.name || 'Expert'}
+          recipientAvatar={expert.user?.avatar || null}
         />
       )}
 
