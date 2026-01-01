@@ -95,8 +95,23 @@ const ActiveCallModal = () => {
       // Fallback to API call
       try {
         const remoteUserId = user?.role === 'expert' ? activeCall.userId : activeCall.expertId;
-        const res = await axios.get(`/api/users/${remoteUserId}`);
-        setRemoteUser(res.data);
+        const endpoint = user?.role === 'expert' ? `/api/users/${remoteUserId}` : `/api/experts/${remoteUserId}`;
+        const res = await axios.get(endpoint);
+        
+        // Handle different response formats
+        let userData;
+        if (user?.role === 'expert') {
+          // For experts fetching user info, response is direct user object
+          userData = res.data;
+        } else {
+          // For users fetching expert info, response has expert.user nested
+          userData = res.data.user || res.data;
+        }
+        
+        setRemoteUser({
+          name: userData.name,
+          avatar: userData.avatar
+        });
       } catch (error) {
         console.error('Fetch remote user error:', error);
         // Set fallback data
