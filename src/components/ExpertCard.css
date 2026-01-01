@@ -121,13 +121,15 @@
 
 .badge-container {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.4rem;
+  align-items: center;
 }
 
+/* Blue Verification Badge - Twitter/X Style */
 .verified-badge {
-  color: #22c55e;
+  color: #1DA1F2;
   font-size: 0.9rem;
-  filter: drop-shadow(0 1px 2px rgba(34, 197, 94, 0.3));
+  filter: drop-shadow(0 1px 2px rgba(29, 161, 242, 0.3));
 }
 
 .linkedin-badge {
@@ -527,12 +529,13 @@
 
 .badge-container {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.4rem;
   align-items: center;
 }
 
+/* Blue Verification Badge - Twitter/X Style */
 .verified-badge {
-  color: #22c55e;
+  color: #1DA1F2;
   font-size: 0.875rem;
   flex-shrink: 0;
   display: flex;

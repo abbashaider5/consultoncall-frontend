@@ -1,0 +1,31 @@
+/* Blue Verification Badge - Twitter/X Style */
+.verified-badge {
+  color: #1DA1F2;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.verified-badge-small {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.verified-badge-medium {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.verified-badge-large {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+.verified-badge-xlarge {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
