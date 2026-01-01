@@ -4,8 +4,8 @@ import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import VerifiedBadge from './VerifiedBadge';
 import './CallModal.css';
+import VerifiedBadge from './VerifiedBadge';
 
 const CallModal = ({ expert, onClose }) => {
   const { user, updateTokens } = useAuth();

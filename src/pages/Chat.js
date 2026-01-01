@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { FiArrowLeft, FiSend, FiTrash2 } from 'react-icons/fi';
+import { FiArrowLeft, FiSend, FiTrash2, FiSlash } from 'react-icons/fi';
+import Skeleton from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -13,10 +16,12 @@ const Chat = () => {
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
   const messagesEndRef = useRef(null);
-  const { newMessage, sendChatMessage, clearUnreadCount, unreadCounts, isExpertOnline } = useSocket();
-  const { isExpert } = useAuth();
+  const { newMessage, sendChatMessage, clearUnreadCount, unreadCounts, getExpertStatus } = useSocket();
+  const { isExpert, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const currentUserId = localStorage.getItem('userId');
@@ -100,6 +105,7 @@ const Chat = () => {
   };
 
   const loadMessages = async (chatId) => {
+    setLoadingMessages(true);
     try {
       const { data } = await axios.get(`/api/chats/${chatId}/messages`);
       setMessages(data.messages || []);
@@ -107,8 +113,50 @@ const Chat = () => {
       console.error('Failed to load messages:', error);
       setMessages([]);
       toast.error(error.response?.data?.message || 'Failed to load messages');
+    } finally {
+      setLoadingMessages(false);
     }
   };
+
+  const handleBlockToggle = async () => {
+    if (!selectedChat) return;
+    const otherParticipant = getOtherParticipant(selectedChat);
+    if (!otherParticipant) return;
+
+    const action = isBlocked ? 'unblock' : 'block';
+    const confirmMessage = isBlocked
+      ? `Are you sure you want to unblock ${otherParticipant.name}?`
+      : `Are you sure you want to block ${otherParticipant.name}?`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      await axios.post(`/api/users/${action}/${otherParticipant._id}`);
+      setIsBlocked(!isBlocked);
+      toast.success(isBlocked ? 'User unblocked' : 'User blocked');
+    } catch (error) {
+      toast.error(`Failed to ${action} user`);
+      console.error(error);
+    }
+  };
+
+  // Check if user is blocked when chat is selected
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      if (!selectedChat || !isExpert) return;
+      const other = getOtherParticipant(selectedChat);
+      if (!other) return;
+
+      try {
+        const { data } = await axios.get('/api/users/blocked');
+        const blockedIds = data.map(u => u._id);
+        setIsBlocked(blockedIds.includes(other._id));
+      } catch {
+        setIsBlocked(false);
+      }
+    };
+    checkBlockStatus();
+  }, [selectedChat, isExpert]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -153,24 +201,6 @@ const Chat = () => {
     } catch (error) {
       console.error('Delete chat error:', error);
       toast.error(error.response?.data?.message || 'Failed to delete chat');
-    }
-  };
-
-  const handleBlockUser = async () => {
-    if (!selectedChat) return;
-    const otherParticipant = getOtherParticipant(selectedChat);
-    if (!otherParticipant) return;
-
-    if (!window.confirm(`Are you sure you want to block ${otherParticipant.name}?`)) return;
-
-    try {
-      await axios.post(`/api/users/block/${otherParticipant._id}`);
-      toast.success('User blocked successfully');
-      // Optionally navigate away or refresh
-      navigate('/');
-    } catch (error) {
-      toast.error('Failed to block user');
-      console.error(error);
     }
   };
 
@@ -234,7 +264,25 @@ const Chat = () => {
           <h2>Messages</h2>
         </div>
         <div className="chat-list-items">
-          {chats.length === 0 ? (
+          {loading ? (
+            /* Skeleton Loading for Chat List */
+            <>
+              {Array(5).fill(0).map((_, i) => (
+                <div className="chat-item" key={i}>
+                  <Skeleton circle={true} height={50} width={50} />
+                  <div className="chat-item-content" style={{ flex: 1, marginLeft: '15px' }}>
+                    <div className="chat-item-header">
+                      <span className="chat-name"><Skeleton width={100} /></span>
+                      <span className="chat-time"><Skeleton width={50} /></span>
+                    </div>
+                    <div className="chat-item-footer">
+                      <p className="chat-last-message"><Skeleton width={150} /></p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : chats.length === 0 ? (
             <div className="no-chats">
               <p>No conversations yet</p>
               <button onClick={() => navigate('/experts')} className="btn-primary">
@@ -290,13 +338,22 @@ const Chat = () => {
                   className="chat-header-avatar"
                 />
                 <div className="chat-header-info">
-                  <h3>{getOtherParticipant(selectedChat)?.name}</h3>
-                  <span className={`chat-header-role ${getOtherParticipant(selectedChat)?.role === 'expert'
-                    ? (isExpertOnline(getOtherParticipant(selectedChat)?._id) ? 'online' : 'offline')
-                    : ''
-                    }`}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <h3>{getOtherParticipant(selectedChat)?.name}</h3>
+                    {getOtherParticipant(selectedChat)?.role === 'expert' && getOtherParticipant(selectedChat)?.isVerified && (
+                      <VerifiedBadge size="small" />
+                    )}
+                  </div>
+                  <span
+                    className="chat-header-role"
+                    style={{
+                      color: getOtherParticipant(selectedChat)?.role === 'expert'
+                        ? (getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.color || '#6c757d')
+                        : '#6c757d'
+                    }}
+                  >
                     {getOtherParticipant(selectedChat)?.role === 'expert'
-                      ? (isExpertOnline(getOtherParticipant(selectedChat)?._id) ? 'Online' : 'Offline')
+                      ? (getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.text || 'Offline')
                       : 'User'
                     }
                   </span>
@@ -305,11 +362,12 @@ const Chat = () => {
               <div className="chat-header-actions">
                 {isExpert && (
                   <button
-                    className="chat-options-btn block-btn"
-                    onClick={handleBlockUser}
-                    title="Block User"
+                    className={`chat-options-btn ${isBlocked ? 'unblock-btn' : 'block-btn'}`}
+                    onClick={handleBlockToggle}
+                    title={isBlocked ? 'Unblock User' : 'Block User'}
                   >
-                    Block
+                    <FiSlash style={{ marginRight: '4px' }} />
+                    {isBlocked ? 'Unblock' : 'Block'}
                   </button>
                 )}
                 <button
@@ -324,7 +382,15 @@ const Chat = () => {
 
             {/* Messages Area */}
             <div className="messages-container">
-              {messages.length === 0 ? (
+              {loadingMessages ? (
+                /* Skeleton Loading for Messages */
+                <div className="messages-skeleton">
+                  <div className="message other"><div className="message-bubble"><Skeleton width={150} /></div></div>
+                  <div className="message own"><div className="message-bubble"><Skeleton width={200} /></div></div>
+                  <div className="message other"><div className="message-bubble"><Skeleton width={120} /><Skeleton width={80} /></div></div>
+                  <div className="message own"><div className="message-bubble"><Skeleton width={180} /></div></div>
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="no-messages">
                   <p>No messages yet. Start the conversation!</p>
                 </div>

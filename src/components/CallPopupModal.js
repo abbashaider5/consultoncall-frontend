@@ -118,9 +118,20 @@ const CallPopupModal = () => {
         setCallStatus('connected');
       }
     } else if (incomingCall) {
+      // CRITICAL: When incoming call arrives, ALWAYS set to ringing
       setCallStatus('ringing');
     }
   }, [activeCall, incomingCall]);
+
+  // Reset to ringing when new incoming call arrives
+  useEffect(() => {
+    if (incomingCall) {
+      setCallStatus('ringing');
+      setDuration(0);
+      setIsVisible(true);
+      setForceClose(false);
+    }
+  }, [incomingCall]);
 
   // Accept/reject handlers
   const handleAccept = () => {
@@ -188,8 +199,10 @@ const CallPopupModal = () => {
   if (!isExpertUser) return null;
   if (!callData || !isVisible || forceClose) return null;
 
-  const isStageA = isIncoming && callStatus === 'ringing';
-  const isStageC = !isIncoming || callStatus === 'connected';
+  // CRITICAL: isStageA = incoming call NOT yet accepted (show Accept/Reject buttons)
+  // isStageC = call is accepted/connected (show Mute/Speaker/End buttons)
+  const isStageA = isIncoming && (callStatus === 'ringing' || callStatus === 'incoming');
+  const isStageC = callStatus === 'connected' || callStatus === 'connecting' || callStatus === 'accepted';
 
   return (
     <div className={`call-modal-overlay stage-${isStageA ? 'a' : 'c'}`}>
@@ -204,18 +217,21 @@ const CallPopupModal = () => {
           </div>
 
           <div className="expert-details-text">
-            <h2>{remoteUser?.name || 'User'}</h2>
-            {isIncoming && <p className="specialization">Incoming Call</p>}
+            <h2>{remoteUser?.name || 'Caller'}</h2>
+            {isStageA && <p className="specialization">Incoming Call</p>}
             {isStageA && <p className="status-label">Incoming...</p>}
+            {isStageC && !isStageA && <p className="specialization">Call in progress</p>}
           </div>
         </div>
 
-        {isStageC && (
+        {/* Only show timer when call is connected, NOT during incoming */}
+        {isStageC && !isStageA && (
           <div className="active-call-timer">{formatDuration(duration)}</div>
         )}
 
         <div className="call-controls-footer">
-          {isIncoming && isStageA ? (
+          {/* INCOMING CALL: Show Accept/Reject buttons */}
+          {isStageA ? (
             <>
               <button className="control-btn end-call-btn" onClick={handleReject}>
                 <div className="icon-circle"><FontAwesomeIcon icon={faPhoneSlash} /></div>
@@ -228,6 +244,7 @@ const CallPopupModal = () => {
               </button>
             </>
           ) : (
+            /* ACTIVE CALL: Show Mute/Speaker/End buttons */
             <>
               <button className={`control-btn ${isMuted ? 'active-state' : ''}`} onClick={toggleMute}>
                 <div className="icon-circle">{isMuted ? <FontAwesomeIcon icon={faMicrophoneSlash} /> : <FontAwesomeIcon icon={faMicrophone} />}</div>

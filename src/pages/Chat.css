@@ -232,11 +232,34 @@
   padding: 0.5rem 1rem;
   background: #fee2e2;
   border-radius: 8px;
+  display: flex;
+  align-items: center;
 }
 
 .block-btn:hover {
   background: #fca5a5;
   color: #7f1d1d;
+}
+
+.unblock-btn {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.unblock-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.messages-skeleton {
+  padding: 20px;
+  opacity: 0.5;
 }
 
 .back-btn {
