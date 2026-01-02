@@ -302,10 +302,36 @@ const ActiveCallModal = () => {
     timerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       setDuration(elapsed);
+      
+      // Check balance every second (for users only)
+      if (user?.role === 'user' && activeCall?.tokensPerMinute) {
+        const elapsedMinutes = elapsed / 60;
+        const estimatedCost = Math.ceil(elapsedMinutes) * activeCall.tokensPerMinute;
+        const remainingBalance = (user?.tokens || 0) - estimatedCost;
+        
+        // Warn at 1 minute remaining
+        if (remainingBalance > 0 && remainingBalance <= activeCall.tokensPerMinute) {
+          toast.warning(`Low balance! ~1 minute remaining`, {
+            position: 'top-center',
+            autoClose: 3000,
+            toastId: 'low-balance-warning'
+          });
+        }
+        
+        // Auto-disconnect if balance exhausted
+        if (remainingBalance <= 0) {
+          console.warn('⚠️ Balance exhausted - ending call');
+          toast.error('Balance exhausted. Call ending...', {
+            position: 'top-center',
+            autoClose: 2000
+          });
+          handleEndCall();
+        }
+      }
     }, 1000);
-  }, [activeCall]);
+  }, [activeCall, user, handleEndCall]);
 
-  const handleEndCall = async () => {
+  const handleEndCall = useCallback(async () => {
     setIsVisible(false);
     setForceClose(true);
     // Update balance immediately if we can estimate it
@@ -346,8 +372,7 @@ const ActiveCallModal = () => {
     } finally {
       resetAll();
     }
-  };
-
+  }, [user, activeCall, duration, callStatus, endCall, updateTokens, resetAll]);
 
   const toggleMute = () => {
     if (localStreamRef.current) {
