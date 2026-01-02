@@ -83,8 +83,15 @@ const ActiveCallModal = () => {
     const fetchRemoteUser = async () => {
       if (!activeCall || !user?.role) return;
 
+      console.log('🔍 Fetching remote user info:', {
+        userRole: user?.role,
+        activeCall,
+        hasCallerInfo: !!activeCall.callerInfo
+      });
+
       // Use caller info from activeCall if available (from socket payload)
       if (activeCall.callerInfo && activeCall.callerInfo.name) {
+        console.log('✅ Using caller info from activeCall:', activeCall.callerInfo);
         setRemoteUser({
           name: activeCall.callerInfo.name,
           avatar: activeCall.callerInfo.avatar
@@ -95,8 +102,23 @@ const ActiveCallModal = () => {
       // Fallback to API call
       try {
         const remoteUserId = user?.role === 'expert' ? activeCall.userId : activeCall.expertId;
+        
+        console.log('🔍 Remote user ID:', remoteUserId);
+        
+        if (!remoteUserId) {
+          console.error('❌ No remote user ID available');
+          setRemoteUser({
+            name: user?.role === 'expert' ? 'Caller' : 'Expert',
+            avatar: null
+          });
+          return;
+        }
+        
         const endpoint = user?.role === 'expert' ? `/api/users/${remoteUserId}` : `/api/experts/${remoteUserId}`;
+        console.log('📡 Fetching from endpoint:', endpoint);
+        
         const res = await axios.get(endpoint);
+        console.log('✅ API response:', res.data);
         
         // Handle different response formats
         let userData;
@@ -108,12 +130,13 @@ const ActiveCallModal = () => {
           userData = res.data.user || res.data;
         }
         
+        console.log('✅ Setting remote user:', userData);
         setRemoteUser({
           name: userData.name,
           avatar: userData.avatar
         });
       } catch (error) {
-        console.error('Fetch remote user error:', error);
+        console.error('❌ Fetch remote user error:', error.response || error);
         // Set fallback data
         setRemoteUser({
           name: user?.role === 'expert' ? (activeCall.callerName || 'Caller') : (activeCall.expertName || 'Expert'),
