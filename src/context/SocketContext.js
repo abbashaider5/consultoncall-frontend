@@ -5,7 +5,11 @@ import { axiosInstance as axios } from '../config/api';
 import { useAuth } from './AuthContext';
 
 // PRODUCTION Socket URL - MUST be set in Vercel env vars
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:10000';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || (
+  process.env.NODE_ENV === 'production' 
+    ? 'https://consultoncall-socket-server.onrender.com' 
+    : 'http://localhost:10000'
+);
 
 const SocketContext = createContext();
 
@@ -65,7 +69,8 @@ export const SocketProvider = ({ children }) => {
       timeout: 45000,
       autoConnect: true,
       forceNew: true,
-      withCredentials: false // Important for CORS with * or specific origins without cookies
+      withCredentials: false, // Important for CORS with * or specific origins without cookies
+      path: '/socket.io/' // Ensure path is correct
     });
 
     socketRef.current = newSocket;

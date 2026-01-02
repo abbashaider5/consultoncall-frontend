@@ -619,40 +619,40 @@ const ActiveCallModal = () => {
         )}
 
         {/* Control Buttons */}
-        <div className="call-controls">
+        <div className="call-controls-footer">
           <button
-            className={`control-button mute ${isMuted ? 'active' : ''}`}
+            className={`control-btn ${isMuted ? 'active-state' : ''}`}
             onClick={toggleMute}
             disabled={callStatus !== 'connected'}
             title={isMuted ? 'Unmute' : 'Mute'}
           >
-            <div className="control-icon">
+            <div className="icon-circle">
               <FontAwesomeIcon icon={isMuted ? faMicrophoneSlash : faMicrophone} />
             </div>
-            <span className="control-label">{isMuted ? 'Unmuted' : 'Muted'}</span>
+            <span className="btn-label">{isMuted ? 'Unmute' : 'Mute'}</span>
           </button>
 
           <button
-            className="control-button end-call"
+            className="control-btn end-call-btn"
             onClick={handleEndCall}
             title="End Call"
           >
-            <div className="control-icon">
+            <div className="icon-circle">
               <FontAwesomeIcon icon={faPhoneSlash} />
             </div>
-            <span className="control-label">End</span>
+            <span className="btn-label">End</span>
           </button>
 
           <button
-            className={`control-button speaker ${isSpeakerOn ? 'active' : ''}`}
+            className={`control-btn ${isSpeakerOn ? 'active-state' : ''}`}
             onClick={toggleSpeaker}
             disabled={callStatus !== 'connected'}
             title="Toggle Speaker"
           >
-            <div className="control-icon">
+            <div className="icon-circle">
               <FontAwesomeIcon icon={faVolumeUp} />
             </div>
-            <span className="control-label">Speaker</span>
+            <span className="btn-label">Speaker</span>
           </button>
         </div>
 
