@@ -1,11 +1,11 @@
-import { faDollarSign, faMicrophone, faMicrophoneSlash, faPhoneSlash, faVolumeUp } from '@fortawesome/free-solid-svg-icons';
+import { faMicrophone, faMicrophoneSlash, faPhoneSlash, faVolumeUp } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import './CallModal.css';
+import './ActiveCallModal.css';
 
 const ActiveCallModal = () => {
   const { user, expert, updateTokens } = useAuth();
@@ -506,18 +506,22 @@ const ActiveCallModal = () => {
   // Show loading state while fetching remote user
   if (!remoteUser) {
     return (
-      <div className="call-modal-overlay">
-        <div className="call-modal">
-          <div className="call-info">
-            <div className="call-avatar">
-              <span>?</span>
-            </div>
-            <h2>Loading...</h2>
-            <p className="call-title">Connecting call</p>
+      <div className="active-call-overlay">
+        <div className="active-call-modal">
+          <div className="call-status-badge">
+            <div className="status-dot"></div>
+            <span className="status-text">Connecting...</span>
           </div>
-          <div className="call-status">
-            <p className={`status-text ${callStatus}`}>{getStatusMessage()}</p>
-            <div className="ringing-animation">
+          
+          <div className="call-user-section">
+            <div className="user-avatar-wrapper">
+              <div className="user-avatar">?</div>
+            </div>
+            <h2 className="user-name">Loading...</h2>
+          </div>
+
+          <div className="call-connecting">
+            <div className="connecting-dots">
               <span></span>
               <span></span>
               <span></span>
@@ -529,81 +533,95 @@ const ActiveCallModal = () => {
   }
 
   return (
-    <div className="call-modal-overlay stage-c">
-      <div className="call-modal-content">
-        <div className="expert-display minimized">
-          <div className="expert-avatar">
+    <div className="active-call-overlay">
+      <div className="active-call-modal">
+        {/* Status Badge */}
+        <div className="call-status-badge">
+          <div className="status-dot"></div>
+          <span className="status-text">
+            {callStatus === 'connected' ? 'Connected' : 'Setting up...'}
+          </span>
+        </div>
+
+        {/* User Section */}
+        <div className="call-user-section">
+          <div className="user-avatar-wrapper">
             {remoteUser?.avatar ? (
-              <img src={remoteUser.avatar} alt={remoteUser.name} />
+              <img src={remoteUser.avatar} alt={remoteUser.name} className="user-avatar" />
             ) : (
-              <span className="initials">
+              <div className="user-avatar">
                 {remoteUser?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}
-              </span>
+              </div>
             )}
+            {callStatus === 'connecting' && <div className="avatar-pulse"></div>}
           </div>
-          <div className="expert-details-text">
-            <h2>{remoteUser.name}</h2>
-            <p className="specialization">
-              {user?.role === 'expert' ? 'Client Call' : 'Expert Consultation'}
-            </p>
-            {user?.role === 'user' && expert && (
-              <p className="call-rate">
-                <FontAwesomeIcon icon={faDollarSign} className="token-icon" /> ₹{expert.tokensPerMinute}/min
-              </p>
-            )}
-          </div>
+          
+          <h2 className="user-name">{remoteUser.name}</h2>
+          <p className="user-title">
+            {user?.role === 'expert' ? 'User Consultation' : 'Expert Consultation'}
+          </p>
         </div>
 
-        <div className="call-status">
-          <p className={`status-text ${callStatus}`}>{getStatusMessage()}</p>
-          {callStatus === 'connected' && (
-            <p className="call-duration">{formatDuration(duration)}</p>
-          )}
-          {callStatus === 'connecting' && (
-            <div className="ringing-animation">
+        {/* Timer (only when connected) */}
+        {callStatus === 'connected' && (
+          <div className="call-timer">
+            <div className="timer-value">{formatDuration(duration)}</div>
+            <div className="timer-label">Duration</div>
+          </div>
+        )}
+
+        {/* Connecting Animation */}
+        {callStatus === 'connecting' && (
+          <div className="call-connecting">
+            <div className="connecting-dots">
               <span></span>
               <span></span>
               <span></span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="call-controls-footer">
+        {/* Control Buttons */}
+        <div className="call-controls">
           <button
-            className={`control-btn ${isMuted ? 'active-state' : ''}`}
+            className={`control-button mute ${isMuted ? 'active' : ''}`}
             onClick={toggleMute}
-            title={isMuted ? 'Unmute' : 'Mute'}
             disabled={callStatus !== 'connected'}
+            title={isMuted ? 'Unmute' : 'Mute'}
           >
-            <div className="icon-circle">
-              {isMuted ? <FontAwesomeIcon icon={faMicrophoneSlash} /> : <FontAwesomeIcon icon={faMicrophone} />}
+            <div className="control-icon">
+              <FontAwesomeIcon icon={isMuted ? faMicrophoneSlash : faMicrophone} />
             </div>
-            <span className="btn-label">{isMuted ? 'Unmute' : 'Mute'}</span>
+            <span className="control-label">{isMuted ? 'Unmuted' : 'Muted'}</span>
           </button>
 
           <button
-            className={`control-btn ${isSpeakerOn ? 'active-state' : ''}`}
-            onClick={toggleSpeaker}
-            title={isSpeakerOn ? 'Switch to earpiece' : 'Switch to speaker'}
-            disabled={callStatus !== 'connected'}
+            className="control-button end-call"
+            onClick={handleEndCall}
+            title="End Call"
           >
-            <div className="icon-circle">
-              <FontAwesomeIcon icon={faVolumeUp} />
-            </div>
-            <span className="btn-label">Speaker</span>
-          </button>
-
-          <button className="control-btn end-call-btn" onClick={handleEndCall} title="End Call">
-            <div className="icon-circle">
+            <div className="control-icon">
               <FontAwesomeIcon icon={faPhoneSlash} />
             </div>
-            <span className="btn-label">End</span>
+            <span className="control-label">End</span>
+          </button>
+
+          <button
+            className={`control-button speaker ${isSpeakerOn ? 'active' : ''}`}
+            onClick={toggleSpeaker}
+            disabled={callStatus !== 'connected'}
+            title="Toggle Speaker"
+          >
+            <div className="control-icon">
+              <FontAwesomeIcon icon={faVolumeUp} />
+            </div>
+            <span className="control-label">Speaker</span>
           </button>
         </div>
 
+        {/* Hidden audio elements */}
         <audio id="remoteAudio" autoPlay playsInline style={{ display: 'none' }} />
-        {/* Hidden local audio for debugging */}
-        <audio id="localAudio" style={{ display: 'none' }} autoPlay muted playsInline />
+        <audio id="localAudio" autoPlay muted playsInline style={{ display: 'none' }} />
       </div>
     </div>
   );
