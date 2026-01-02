@@ -26,6 +26,10 @@ const ActiveCallModal = () => {
   const [remoteUser, setRemoteUser] = useState(null);
   const [isVisible, setIsVisible] = useState(true);
   const [forceClose, setForceClose] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  // Theme color constant
+  const THEME_COLOR = '#936AAC';
 
   // Reset all state and refs
   const resetAll = useCallback(() => {
@@ -36,17 +40,33 @@ const ActiveCallModal = () => {
     setRemoteUser(null);
     setIsVisible(false);
     setForceClose(false);
+    setIsAudioPlaying(false);
+    
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+      });
       localStreamRef.current = null;
     }
+    
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
+    }
+
+    // Clean up audio elements
+    const localAudio = document.getElementById('localAudio');
+    const remoteAudio = document.getElementById('remoteAudio');
+    if (localAudio) {
+      localAudio.remove();
+    }
+    if (remoteAudio) {
+      remoteAudio.remove();
     }
   }, []);
 
@@ -55,6 +75,7 @@ const ActiveCallModal = () => {
   const peerConnectionRef = useRef(null);
   const timerRef = useRef(null);
   const hasStartedCallRef = useRef(false);
+  const billingStartedRef = useRef(false);
 
   // Listen for call ended event directly
   useEffect(() => {
@@ -64,10 +85,22 @@ const ActiveCallModal = () => {
     }
 
     setIsVisible(true);
-    setForceClose(false); // Reset force close for new calls
+    setForceClose(false);
+    
     const handleCallEnded = (data) => {
       console.log('🔚 Call ended event received in ActiveCallModal:', data);
       resetAll();
+      
+      // Show appropriate message based on reason
+      if (data.reason) {
+        if (data.reason === 'socket_disconnect') {
+          toast.info('Connection lost. Call ended safely.');
+        } else if (data.reason === 'balance_exhausted') {
+          toast.info('Balance exhausted. Call ended.');
+        } else {
+          toast.info(data.reason);
+        }
+      }
     };
 
     // Listen for call_ended event
@@ -158,7 +191,8 @@ const ActiveCallModal = () => {
     const config = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
       ]
     };
 
@@ -170,27 +204,38 @@ const ActiveCallModal = () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
-          noiseSuppression: true
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 1
         }
       });
       localStreamRef.current = stream;
       stream.getTracks().forEach(track => {
         pc.addTrack(track, stream);
       });
+      
       // Attach local stream to a hidden audio element for local test
       let localAudio = document.getElementById('localAudio');
       if (!localAudio) {
         localAudio = document.createElement('audio');
         localAudio.id = 'localAudio';
         localAudio.style.display = 'none';
+        localAudio.muted = true;
         document.body.appendChild(localAudio);
       }
       localAudio.srcObject = stream;
-      localAudio.muted = true;
-      localAudio.play().catch(err => console.warn('Local audio play failed:', err));
+      try {
+        await localAudio.play();
+        console.log('✅ Local audio initialized');
+      } catch (err) {
+        console.warn('Local audio play failed:', err);
+      }
     } catch (mediaError) {
       toast.error('Microphone access denied. Please allow microphone permissions.');
-      console.warn('Could not access microphone:', mediaError);
+      console.error('❌ Microphone access error:', mediaError);
+      setCallStatus('failed');
+      return;
     }
 
     // Handle remote stream
@@ -205,21 +250,28 @@ const ActiveCallModal = () => {
         audio.id = 'remoteAudio';
         audio.autoPlay = true;
         audio.playsInline = true;
+        audio.style.display = 'none';
         document.body.appendChild(audio);
       }
       
       audio.srcObject = event.streams[0];
-      // Explicitly play to bypass browser autoplay restrictions
-      audio.play().catch(err => {
-        console.warn('Remote audio play failed:', err);
-        // Try again after user interaction
-        const playAudio = () => {
-          audio.play().catch(e => console.warn('Still failed to play audio:', e));
-          document.removeEventListener('click', playAudio);
-        };
-        document.addEventListener('click', playAudio);
-      });
-      console.log('🎵 Assigned remote stream to audio element and started playback');
+      setIsAudioPlaying(true);
+      
+      // Explicitly play with better error handling
+      const playAudio = async () => {
+        try {
+          await audio.play();
+          console.log('✅ Remote audio playing successfully');
+          setIsAudioPlaying(true);
+        } catch (err) {
+          console.warn('Remote audio play failed, retrying...', err);
+          // Try again after a short delay
+          setTimeout(() => {
+            audio.play().catch(e => console.warn('Still failed to play audio:', e));
+          }, 100);
+        }
+      };
+      playAudio();
     };
 
     // Handle ICE candidates
@@ -229,17 +281,37 @@ const ActiveCallModal = () => {
       }
     };
 
+    // Handle ICE connection state
+    pc.oniceconnectionstatechange = () => {
+      console.log('🧊 ICE connection state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        console.log('✅ ICE connection established');
+      } else if (pc.iceConnectionState === 'failed') {
+        console.error('❌ ICE connection failed');
+        toast.error('Connection failed. Please try again.');
+        handleEndCall();
+      }
+    };
+
     // Handle connection state
     pc.onconnectionstatechange = () => {
-      console.log('\ud83d\udd0c WebRTC connection state:', pc.connectionState);
+      console.log('🔗 WebRTC connection state:', pc.connectionState);
       if (pc.connectionState === 'connected') {
-        console.log('\u2705 WebRTC connection established - updating call status');
+        console.log('✅ WebRTC connection established - updating call status');
         setCallStatus('connected');
-        markCallConnected(activeCall.callId).catch(err => console.error('Mark connected error:', err));
+        // Mark as connected in backend (starts billing)
+        if (!billingStartedRef.current) {
+          markCallConnected(activeCall.callId).catch(err => {
+            console.error('Mark connected error:', err);
+            toast.error('Failed to establish connection');
+          });
+          billingStartedRef.current = true;
+        }
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        console.error('\u274c WebRTC connection failed/disconnected');
+        console.error('❌ WebRTC connection failed/disconnected');
         if (pc.connectionState === 'failed') {
           toast.error('Connection failed. Please try again.');
+          handleEndCall();
         }
       }
     };
@@ -247,28 +319,41 @@ const ActiveCallModal = () => {
     // Create and send offer (caller initiates)
     if (user?.role === 'user') {
       try {
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false
+        });
         await pc.setLocalDescription(offer);
         sendOffer({ callId: activeCall.callId, offer });
         console.log('📤 Sent WebRTC offer');
       } catch (error) {
-        console.error('Create offer error:', error);
+        console.error('❌ Create offer error:', error);
+        toast.error('Failed to setup call');
+        setCallStatus('failed');
       }
     }
-  }, [activeCall, user?.role, sendOffer, sendIceCandidate, markCallConnected]);
+  }, [activeCall, user?.role, sendOffer, sendIceCandidate, markCallConnected, handleEndCall]);
 
   const handleWebRTCOffer = useCallback(async (data) => {
     if (!activeCall || data.callId !== activeCall.callId) return;
 
     console.log('📥 Received WebRTC offer');
     try {
+      if (!peerConnectionRef.current) {
+        console.error('❌ Peer connection not established');
+        return;
+      }
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.offer));
-      const answer = await peerConnectionRef.current.createAnswer();
+      const answer = await peerConnectionRef.current.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      });
       await peerConnectionRef.current.setLocalDescription(answer);
       sendAnswer({ callId: activeCall.callId, answer });
       console.log('📤 Sent WebRTC answer');
     } catch (error) {
-      console.error('Handle offer error:', error);
+      console.error('❌ Handle offer error:', error);
+      toast.error('Failed to accept call');
     }
   }, [activeCall, sendAnswer]);
 
@@ -277,9 +362,15 @@ const ActiveCallModal = () => {
 
     console.log('📥 Received WebRTC answer');
     try {
+      if (!peerConnectionRef.current) {
+        console.error('❌ Peer connection not established');
+        return;
+      }
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+      console.log('✅ WebRTC handshake complete');
     } catch (error) {
-      console.error('Handle answer error:', error);
+      console.error('❌ Handle answer error:', error);
+      toast.error('Connection setup failed');
     }
   }, [activeCall]);
 
@@ -289,52 +380,74 @@ const ActiveCallModal = () => {
     try {
       if (peerConnectionRef.current && data.candidate) {
         await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+        console.log('🧊 ICE candidate added');
       }
     } catch (error) {
-      console.error('Handle ICE candidate error:', error);
+      console.error('❌ Handle ICE candidate error:', error);
     }
   }, [activeCall]);
 
-
-
   const handleEndCall = useCallback(async () => {
+    console.log('📞 Ending call...');
     setIsVisible(false);
     setForceClose(true);
-    // Update balance immediately if we can estimate it
-    if (user?.role === 'user' && activeCall) {
-      const estimatedMinutes = Math.max(1, Math.ceil(duration / 60));
-      const estimatedTokens = estimatedMinutes * activeCall.tokensPerMinute;
-      const newBalance = Math.max(0, (user?.tokens || 0) - estimatedTokens);
-      updateTokens(newBalance);
+    
+    // Stop timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
+
     try {
       if (activeCall) {
+        // End call via socket
         try {
           await endCall(activeCall.callId);
         } catch (socketError) {
           console.error('Socket end call error:', socketError);
         }
-      }
-      if (activeCall && callStatus === 'connected') {
-        const token = localStorage.getItem('token');
-        try {
-          const res = await axios.put(`/api/calls/end/${activeCall.callId}`, {
-            initiatedBy: user?.role
-          }, {
-            headers: { 'x-auth-token': token }
-          });
-          if (res.data.success && user?.role === 'user') {
-            updateTokens(res.data.newBalance);
-            toast.success(`Call ended. Duration: ${res.data.call.minutes} min, Cost: ₹${res.data.call.tokensSpent}`);
-          } else if (!res.data.success) {
-            toast.error('Failed to end call properly');
+
+        // End call via backend to finalize billing
+        if (callStatus === 'connected') {
+          const token = localStorage.getItem('token');
+          try {
+            const res = await axios.put(
+              `/api/calls/end/${activeCall.callId}`,
+              { initiatedBy: user?.role },
+              { headers: { 'x-auth-token': token } }
+            );
+            
+            if (res.data.success) {
+              console.log('✅ Call ended successfully:', res.data);
+              
+              // Update user tokens
+              if (user?.role === 'user') {
+                updateTokens(res.data.newBalance);
+                toast.success(
+                  `Call ended. Duration: ${res.data.call.minutes} min, Cost: ₹${res.data.call.tokensSpent}`,
+                  { position: 'top-center', autoClose: 5000 }
+                );
+              } else {
+                toast.success(`Call ended. Duration: ${res.data.call.minutes} min`, {
+                  position: 'top-center',
+                  autoClose: 5000
+                });
+              }
+            } else {
+              toast.error('Failed to end call properly');
+            }
+          } catch (apiError) {
+            console.error('❌ API end call error:', apiError);
+            toast.error('Failed to finalize call. Please check your balance.');
           }
-        } catch (apiError) {
-          console.error('API end call error:', apiError);
+        } else {
+          // Call never connected, no charge
+          toast.info('Call ended. No charge as call did not connect.');
         }
       }
     } catch (error) {
-      console.error('End call error:', error);
+      console.error('❌ End call error:', error);
+      toast.error('Error ending call. Please refresh if issues persist.');
     } finally {
       resetAll();
     }
@@ -382,6 +495,7 @@ const ActiveCallModal = () => {
         track.enabled = !track.enabled;
       });
       setIsMuted(!isMuted);
+      toast.info(isMuted ? 'Microphone unmuted' : 'Microphone muted');
     }
   };
 
@@ -431,33 +545,39 @@ const ActiveCallModal = () => {
         return 'Setting up call...';
       case 'connected':
         return 'Connected';
+      case 'failed':
+        return 'Call Failed';
       default:
         return 'Connecting...';
     }
   };
 
-  const handleCallStart = useCallback(async () => {
-    try {
-      // Mark call as connected in backend - THIS STARTS BILLING
-      await axios.put(`/api/calls/connect/${activeCall.callId}`);
-      console.log('✅ Call connected in backend - billing started');
-    } catch (error) {
-      console.error('Connect call API error:', error);
+  const getStatusColor = () => {
+    switch (callStatus) {
+      case 'ringing':
+        return '#fd7e14';
+      case 'connecting':
+        return '#ffc107';
+      case 'connected':
+        return '#28a745';
+      case 'failed':
+        return '#dc3545';
+      default:
+        return '#6c757d';
     }
-  }, [activeCall?.callId]);
+  };
 
   // Setup WebRTC when call is accepted
   useEffect(() => {
     // Only setup WebRTC when call is accepted
-    // For caller: Ringing -> Accepted -> Setup
-    // For expert: Accepted -> Setup
     if (activeCall && activeCall.status === 'accepted' && !peerConnectionRef.current) {
       console.log('🚀 Initiating WebRTC setup for call:', activeCall.callId);
+      setCallStatus('connecting');
       setupPeerConnection();
     }
   }, [activeCall, setupPeerConnection]);
 
-  // Update status when call connects (also handle socket-based connection updates)
+  // Update status when call connects
   useEffect(() => {
     // Sync local status with activeCall status
     if (activeCall?.status === 'ringing') {
@@ -470,19 +590,15 @@ const ActiveCallModal = () => {
     if (callStatus === 'connected' && !timerRef.current) {
       console.log('⏱️ Starting call timer - call is connected');
       startTimer();
-      if (!hasStartedCallRef.current) {
-        hasStartedCallRef.current = true;
-        handleCallStart();
-      }
     }
     
     // Also handle socket-based connection event
     if (activeCall && activeCall.status === 'connected' && callStatus !== 'connected') {
       setCallStatus('connected');
     }
-  }, [activeCall, callStatus, handleCallStart, startTimer]);
+  }, [activeCall, callStatus, startTimer]);
 
-  // Handle WebRTC offer (for receiver)
+  // Handle WebRTC signaling events
   useEffect(() => {
     window.webrtcOfferHandler = handleWebRTCOffer;
     window.webrtcAnswerHandler = handleWebRTCAnswer;
@@ -495,25 +611,9 @@ const ActiveCallModal = () => {
     };
   }, [activeCall, handleWebRTCOffer, handleWebRTCAnswer, handleWebRTCIce]);
 
-  // Call Safety: Auto-end call on tab close, visibility change, or socket disconnect
+  // Call Safety: Auto-end call on socket disconnect
   useEffect(() => {
     if (!activeCall) return;
-
-    const handleBeforeUnload = (e) => {
-      // End call when tab is closed
-      if (activeCall && callStatus === 'connected') {
-        endCall(activeCall.callId);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      // Optional: Could pause/resume based on visibility, but for now just log
-      if (document.hidden) {
-        console.log('Tab hidden - call continues');
-      } else {
-        console.log('Tab visible - call active');
-      }
-    };
 
     const handleSocketDisconnect = () => {
       console.log('Socket disconnected - ending call for safety');
@@ -522,22 +622,14 @@ const ActiveCallModal = () => {
       }
     };
 
-    // Listen for socket disconnect
     socket?.on('disconnect', handleSocketDisconnect);
 
-    // Add event listeners
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       socket?.off('disconnect', handleSocketDisconnect);
     };
-  }, [activeCall, callStatus, socket, endCall, handleEndCall]);
+  }, [activeCall, callStatus, socket, handleEndCall]);
 
-
-  // Only render once the call has been accepted (WebRTC/setup phase) or connected.
+  // Only render once the call has been accepted (WebRTC/setup phase) or connected
   if (!activeCall || !['ringing', 'accepted', 'connected'].includes(activeCall.status) || !isVisible || forceClose) {
     return null;
   }
@@ -548,7 +640,7 @@ const ActiveCallModal = () => {
       <div className="active-call-overlay">
         <div className="active-call-modal">
           <div className="call-status-badge">
-            <div className="status-dot"></div>
+            <div className="status-dot" style={{ backgroundColor: getStatusColor() }}></div>
             <span className="status-text">Connecting...</span>
           </div>
           
@@ -573,13 +665,11 @@ const ActiveCallModal = () => {
 
   return (
     <div className="active-call-overlay">
-      <div className="active-call-modal">
+      <div className="active-call-modal" style={{ '--theme-color': THEME_COLOR }}>
         {/* Status Badge */}
         <div className="call-status-badge">
-          <div className="status-dot"></div>
-          <span className="status-text">
-            {getStatusMessage()}
-          </span>
+          <div className="status-dot" style={{ backgroundColor: getStatusColor() }}></div>
+          <span className="status-text">{getStatusMessage()}</span>
         </div>
 
         {/* User Section */}
@@ -593,12 +683,22 @@ const ActiveCallModal = () => {
               </div>
             )}
             {callStatus === 'connecting' && <div className="avatar-pulse"></div>}
+            {isAudioPlaying && callStatus === 'connected' && (
+              <div className="audio-indicator">
+                <div className="audio-wave"></div>
+                <div className="audio-wave"></div>
+                <div className="audio-wave"></div>
+              </div>
+            )}
           </div>
           
           <h2 className="user-name">{remoteUser.name}</h2>
           <p className="user-title">
             {user?.role === 'expert' ? 'User Consultation' : 'Expert Consultation'}
           </p>
+          {user?.role === 'user' && activeCall?.tokensPerMinute && (
+            <p className="call-rate">₹{activeCall.tokensPerMinute}/min</p>
+          )}
         </div>
 
         {/* Timer (only when connected) */}
@@ -627,6 +727,7 @@ const ActiveCallModal = () => {
             onClick={toggleMute}
             disabled={callStatus !== 'connected'}
             title={isMuted ? 'Unmute' : 'Mute'}
+            style={{ opacity: callStatus === 'connected' ? 1 : 0.5 }}
           >
             <div className="icon-circle">
               <FontAwesomeIcon icon={isMuted ? faMicrophoneSlash : faMicrophone} />
@@ -650,6 +751,7 @@ const ActiveCallModal = () => {
             onClick={toggleSpeaker}
             disabled={callStatus !== 'connected'}
             title="Toggle Speaker"
+            style={{ opacity: callStatus === 'connected' ? 1 : 0.5 }}
           >
             <div className="icon-circle">
               <FontAwesomeIcon icon={faVolumeUp} />
