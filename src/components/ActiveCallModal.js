@@ -225,7 +225,7 @@ const ActiveCallModal = () => {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        sendIceCandidate(activeCall.callId, event.candidate);
+        sendIceCandidate({ callId: activeCall.callId, candidate: event.candidate });
       }
     };
 
@@ -249,7 +249,7 @@ const ActiveCallModal = () => {
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        sendOffer(activeCall.callId, offer);
+        sendOffer({ callId: activeCall.callId, offer });
         console.log('📤 Sent WebRTC offer');
       } catch (error) {
         console.error('Create offer error:', error);
@@ -265,7 +265,7 @@ const ActiveCallModal = () => {
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.offer));
       const answer = await peerConnectionRef.current.createAnswer();
       await peerConnectionRef.current.setLocalDescription(answer);
-      sendAnswer(activeCall.callId, answer);
+      sendAnswer({ callId: activeCall.callId, answer });
       console.log('📤 Sent WebRTC answer');
     } catch (error) {
       console.error('Handle offer error:', error);
@@ -294,6 +294,8 @@ const ActiveCallModal = () => {
       console.error('Handle ICE candidate error:', error);
     }
   }, [activeCall]);
+
+
 
   const handleEndCall = useCallback(async () => {
     setIsVisible(false);

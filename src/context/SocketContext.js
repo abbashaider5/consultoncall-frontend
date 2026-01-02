@@ -255,21 +255,21 @@ export const SocketProvider = ({ children }) => {
     });
 
     // WebRTC Signaling Events
-    newSocket.on('offer', (data) => {
+    newSocket.on('webrtc_offer', (data) => {
       console.log('📡 Received WebRTC offer:', data);
       if (window.webrtcOfferHandler) {
         window.webrtcOfferHandler(data);
       }
     });
 
-    newSocket.on('answer', (data) => {
+    newSocket.on('webrtc_answer', (data) => {
       console.log('📡 Received WebRTC answer:', data);
       if (window.webrtcAnswerHandler) {
         window.webrtcAnswerHandler(data);
       }
     });
 
-    newSocket.on('ice_candidate', (data) => {
+    newSocket.on('webrtc_ice', (data) => {
       console.log('🧊 Received ICE candidate:', data);
       if (window.webrtcIceHandler) {
         window.webrtcIceHandler(data);
