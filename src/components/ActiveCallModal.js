@@ -231,11 +231,16 @@ const ActiveCallModal = () => {
 
     // Handle connection state
     pc.onconnectionstatechange = () => {
-      console.log('WebRTC connection state:', pc.connectionState);
+      console.log('\ud83d\udd0c WebRTC connection state:', pc.connectionState);
       if (pc.connectionState === 'connected') {
+        console.log('\u2705 WebRTC connection established - updating call status');
+        setCallStatus('connected');
         markCallConnected(activeCall.callId).catch(err => console.error('Mark connected error:', err));
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        console.error('WebRTC connection failed');
+        console.error('\u274c WebRTC connection failed/disconnected');
+        if (pc.connectionState === 'failed') {
+          toast.error('Connection failed. Please try again.');
+        }
       }
     };
 
@@ -414,20 +419,27 @@ const ActiveCallModal = () => {
 
   // Setup WebRTC when call is accepted
   useEffect(() => {
-    if (activeCall && activeCall.status === 'accepted' && callStatus === 'connecting') {
+    if (activeCall && (activeCall.status === 'accepted' || activeCall.status === 'ringing') && !peerConnectionRef.current) {
+      console.log('🚀 Initiating WebRTC setup for call:', activeCall.callId);
       setupPeerConnection();
     }
-  }, [activeCall, callStatus, setupPeerConnection]);
+  }, [activeCall, setupPeerConnection]);
 
-  // Update status when call connects
+  // Update status when call connects (also handle socket-based connection updates)
   useEffect(() => {
-    if (activeCall && activeCall.status === 'connected' && callStatus !== 'connected') {
-      setCallStatus('connected');
+    // Start timer when call status changes to connected (from WebRTC or socket event)
+    if (callStatus === 'connected' && !timerRef.current) {
+      console.log('⏱️ Starting call timer - call is connected');
       startTimer();
       if (!hasStartedCallRef.current) {
         hasStartedCallRef.current = true;
         handleCallStart();
       }
+    }
+    
+    // Also handle socket-based connection event
+    if (activeCall && activeCall.status === 'connected' && callStatus !== 'connected') {
+      setCallStatus('connected');
     }
   }, [activeCall, callStatus, handleCallStart, startTimer]);
 

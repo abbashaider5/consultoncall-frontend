@@ -58,14 +58,15 @@ export const SocketProvider = ({ children }) => {
     console.log('🎭 User type:', isExpert ? 'expert' : 'user');
 
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
-      timeout: 20000,
+      transports: ['polling', 'websocket'], // Try polling first, then upgrade to websocket
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 30000,
       autoConnect: true,
-      forceNew: true,
-      // Do not force credentials for Socket.IO (breaks on strict CORS setups on some mobile browsers)
+      forceNew: false, // Reuse existing connection if possible
+      upgrade: true, // Allow transport upgrade
+      rememberUpgrade: true,
       withCredentials: false
     });
 
@@ -240,6 +241,28 @@ export const SocketProvider = ({ children }) => {
       setActiveCall(null);
       setIncomingCall(null);
       stopIncomingCallSound();
+    });
+
+    // WebRTC Signaling Events
+    newSocket.on('offer', (data) => {
+      console.log('📡 Received WebRTC offer:', data);
+      if (window.webrtcOfferHandler) {
+        window.webrtcOfferHandler(data);
+      }
+    });
+
+    newSocket.on('answer', (data) => {
+      console.log('📡 Received WebRTC answer:', data);
+      if (window.webrtcAnswerHandler) {
+        window.webrtcAnswerHandler(data);
+      }
+    });
+
+    newSocket.on('ice_candidate', (data) => {
+      console.log('🧊 Received ICE candidate:', data);
+      if (window.webrtcIceHandler) {
+        window.webrtcIceHandler(data);
+      }
     });
 
     // Chat events
