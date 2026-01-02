@@ -447,19 +447,19 @@ export const SocketProvider = ({ children }) => {
 
   const sendOffer = useCallback((data) => {
     if (socket && isConnected) {
-      socket.emit('offer', data);
+      socket.emit('webrtc_offer', data);
     }
   }, [socket, isConnected]);
 
   const sendAnswer = useCallback((data) => {
     if (socket && isConnected) {
-      socket.emit('answer', data);
+      socket.emit('webrtc_answer', data);
     }
   }, [socket, isConnected]);
 
   const sendIceCandidate = useCallback((data) => {
     if (socket && isConnected) {
-      socket.emit('ice_candidate', data);
+      socket.emit('webrtc_ice', data);
     }
   }, [socket, isConnected]);
 
