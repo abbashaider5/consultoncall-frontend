@@ -58,19 +58,19 @@ export const SocketProvider = ({ children }) => {
     console.log('🎭 User type:', isExpert ? 'expert' : 'user');
 
     const newSocket = io(SOCKET_URL, {
-      transports: ['polling', 'websocket'], // Try polling first, then upgrade to websocket
-      reconnectionAttempts: 15,
+      transports: ['websocket', 'polling'], // Try websocket first for better performance
+      reconnectionAttempts: 20,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 30000,
+      timeout: 45000,
       autoConnect: true,
-      forceNew: false, // Reuse existing connection if possible
-      upgrade: true, // Allow transport upgrade
-      rememberUpgrade: true,
-      withCredentials: false
+      forceNew: true,
+      withCredentials: false // Important for CORS with * or specific origins without cookies
     });
 
     socketRef.current = newSocket;
+    // Expose socket to window for debugging
+    window.socket = newSocket;
 
     newSocket.on('connect', () => {
       console.log('✅ Socket connected successfully!');
@@ -90,6 +90,12 @@ export const SocketProvider = ({ children }) => {
       } else {
         console.warn('⚠️ No user ID available for registration');
       }
+    });
+
+    newSocket.on('connect_error', (err) => {
+      console.error('❌ Socket connection error:', err.message);
+      setConnectionError(err.message);
+      setIsConnected(false);
     });
 
     newSocket.on('disconnect', (reason) => {
@@ -345,8 +351,15 @@ export const SocketProvider = ({ children }) => {
 
     console.log('socket emit call:initiate', payload);
 
-    // DO NOT set activeCall here for user (causes premature disappear)
-    // User CallModal maintains its own local state until accepted
+    // Set activeCall immediately to show the modal in "Ringing" state
+    setActiveCall({
+      callId: data.callId,
+      userId: data.userId,
+      expertId: data.expertId,
+      status: 'ringing',
+      startTime: null,
+      callerInfo: data.callerInfo || { name: 'Calling...', avatar: null }
+    });
 
     return new Promise((resolve) => {
       socket.emit('call:initiate', payload, (response) => {
