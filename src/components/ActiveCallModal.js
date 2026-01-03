@@ -181,6 +181,72 @@ const ActiveCallModal = () => {
     fetchRemoteUser();
   }, [activeCall, user?.role]);
 
+  const handleEndCall = useCallback(async () => {
+    console.log('📞 Ending call...');
+    setIsVisible(false);
+    setForceClose(true);
+    
+    // Stop timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    try {
+      if (activeCall) {
+        // End call via socket
+        try {
+          await endCall(activeCall.callId);
+        } catch (socketError) {
+          console.error('Socket end call error:', socketError);
+        }
+
+        // End call via backend to finalize billing
+        if (callStatus === 'connected') {
+          const token = localStorage.getItem('token');
+          try {
+            const res = await axios.put(
+              `/api/calls/end/${activeCall.callId}`,
+              { initiatedBy: user?.role },
+              { headers: { 'x-auth-token': token } }
+            );
+            
+            if (res.data.success) {
+              console.log('✅ Call ended successfully:', res.data);
+              
+              // Update user tokens
+              if (user?.role === 'user') {
+                updateTokens(res.data.newBalance);
+                toast.success(
+                  `Call ended. Duration: ${res.data.call.minutes} min, Cost: ₹${res.data.call.tokensSpent}`,
+                  { position: 'top-center', autoClose: 5000 }
+                );
+              } else {
+                toast.success(`Call ended. Duration: ${res.data.call.minutes} min`, {
+                  position: 'top-center',
+                  autoClose: 5000
+                });
+              }
+            } else {
+              toast.error('Failed to end call properly');
+            }
+          } catch (apiError) {
+            console.error('❌ API end call error:', apiError);
+            toast.error('Failed to finalize call. Please check your balance.');
+          }
+        } else {
+          // Call never connected, no charge
+          toast.info('Call ended. No charge as call did not connect.');
+        }
+      }
+    } catch (error) {
+      console.error('❌ End call error:', error);
+      toast.error('Error ending call. Please refresh if issues persist.');
+    } finally {
+      resetAll();
+    }
+  }, [user, activeCall, duration, callStatus, endCall, updateTokens, resetAll]);
+
   const setupPeerConnection = useCallback(async () => {
     if (!activeCall || peerConnectionRef.current) {
       return;
@@ -386,72 +452,6 @@ const ActiveCallModal = () => {
       console.error('❌ Handle ICE candidate error:', error);
     }
   }, [activeCall]);
-
-  const handleEndCall = useCallback(async () => {
-    console.log('📞 Ending call...');
-    setIsVisible(false);
-    setForceClose(true);
-    
-    // Stop timer
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    try {
-      if (activeCall) {
-        // End call via socket
-        try {
-          await endCall(activeCall.callId);
-        } catch (socketError) {
-          console.error('Socket end call error:', socketError);
-        }
-
-        // End call via backend to finalize billing
-        if (callStatus === 'connected') {
-          const token = localStorage.getItem('token');
-          try {
-            const res = await axios.put(
-              `/api/calls/end/${activeCall.callId}`,
-              { initiatedBy: user?.role },
-              { headers: { 'x-auth-token': token } }
-            );
-            
-            if (res.data.success) {
-              console.log('✅ Call ended successfully:', res.data);
-              
-              // Update user tokens
-              if (user?.role === 'user') {
-                updateTokens(res.data.newBalance);
-                toast.success(
-                  `Call ended. Duration: ${res.data.call.minutes} min, Cost: ₹${res.data.call.tokensSpent}`,
-                  { position: 'top-center', autoClose: 5000 }
-                );
-              } else {
-                toast.success(`Call ended. Duration: ${res.data.call.minutes} min`, {
-                  position: 'top-center',
-                  autoClose: 5000
-                });
-              }
-            } else {
-              toast.error('Failed to end call properly');
-            }
-          } catch (apiError) {
-            console.error('❌ API end call error:', apiError);
-            toast.error('Failed to finalize call. Please check your balance.');
-          }
-        } else {
-          // Call never connected, no charge
-          toast.info('Call ended. No charge as call did not connect.');
-        }
-      }
-    } catch (error) {
-      console.error('❌ End call error:', error);
-      toast.error('Error ending call. Please refresh if issues persist.');
-    } finally {
-      resetAll();
-    }
-  }, [user, activeCall, duration, callStatus, endCall, updateTokens, resetAll]);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) return;
