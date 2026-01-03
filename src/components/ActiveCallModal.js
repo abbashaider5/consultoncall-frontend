@@ -678,8 +678,8 @@ const ActiveCallModal = () => {
             {remoteUser?.avatar ? (
               <img src={remoteUser.avatar} alt={remoteUser.name} className="user-avatar" />
             ) : (
-              <div className="user-avatar">
-                {remoteUser?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}
+              <div className="user-avatar initials">
+                {remoteUser?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
               </div>
             )}
             {callStatus === 'connecting' && <div className="avatar-pulse"></div>}
@@ -694,20 +694,23 @@ const ActiveCallModal = () => {
           
           <h2 className="user-name">{remoteUser.name}</h2>
           <p className="user-title">
-            {user?.role === 'expert' ? 'User Consultation' : 'Expert Consultation'}
+            {user?.role === 'expert' ? 'Customer Call' : 'Expert Consultation'}
           </p>
-          {user?.role === 'user' && activeCall?.tokensPerMinute && (
-            <p className="call-rate">₹{activeCall.tokensPerMinute}/min</p>
-          )}
         </div>
 
-        {/* Timer (only when connected) */}
-        {callStatus === 'connected' && (
-          <div className="call-timer">
-            <div className="timer-value">{formatDuration(duration)}</div>
-            <div className="timer-label">Duration</div>
-          </div>
-        )}
+        {/* Call Info - Rate and Duration */}
+        <div className="call-info-section">
+          {user?.role === 'user' && activeCall?.tokensPerMinute && (
+            <div className="call-rate-badge">
+              <span className="rate-label">Rate:</span>
+              <span className="rate-value">₹{activeCall.tokensPerMinute}/min</span>
+            </div>
+          )}
+
+          {callStatus === 'connected' && (
+            <div className="call-duration">{formatDuration(duration)}</div>
+          )}
+        </div>
 
         {/* Connecting Animation */}
         {callStatus === 'connecting' && (

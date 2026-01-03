@@ -1,5 +1,5 @@
 /* ========================================
-   SLEEK ACTIVE CALL MODAL - WHATSAPP STYLE
+   SLEEK ACTIVE CALL MODAL - MODERN DESIGN
    Theme: #936AAC (Primary Purple)
    ======================================== */
 
@@ -12,8 +12,8 @@
   justify-content: center;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  background: rgba(15, 23, 42, 0.85);
-  animation: fadeIn 0.3s ease;
+  background: linear-gradient(135deg, rgba(147, 106, 172, 0.3) 0%, rgba(15, 23, 42, 0.85) 100%);
+  animation: fadeIn 0.4s ease;
 }
 
 @keyframes fadeIn {
@@ -24,27 +24,39 @@
 /* Main Modal Card */
 .active-call-modal {
   width: 100%;
-  max-width: 400px;
+  max-width: 450px;
   height: 100%;
-  max-height: 700px;
+  max-height: 720px;
   background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
   border-radius: 0;
-  padding: 4rem 2rem 3rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  padding: 3rem 2.5rem 3rem;
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6);
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   color: white;
+  animation: slideUpModal 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes slideUpModal {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 @media (min-width: 640px) {
   .active-call-modal {
     height: auto;
-    min-height: 600px;
-    border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 650px;
+    border-radius: 36px;
+    border: 2px solid rgba(147, 106, 172, 0.3);
   }
 }
 
@@ -54,27 +66,37 @@
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .status-dot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
+  box-shadow: 0 0 20px currentColor;
+  animation: pulseGlow 2s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.7; }
+@keyframes pulseGlow {
+  0%, 100% { 
+    transform: scale(1); 
+    opacity: 1;
+    box-shadow: 0 0 20px currentColor;
+  }
+  50% { 
+    transform: scale(1.3); 
+    opacity: 0.6;
+    box-shadow: 0 0 30px currentColor;
+  }
 }
 
 .status-text {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 1rem;
-  font-weight: 500;
-  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 /* User Avatar Section */
@@ -89,23 +111,30 @@
 
 .user-avatar-wrapper {
   position: relative;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .user-avatar {
-  width: 140px;
-  height: 140px;
+  width: 160px;
+  height: 160px;
   border-radius: 50%;
   object-fit: cover;
-  border: 5px solid rgba(255, 255, 255, 0.1);
+  border: 6px solid rgba(147, 106, 172, 0.4);
+  box-shadow: 0 15px 40px rgba(147, 106, 172, 0.3), 0 0 0 15px rgba(147, 106, 172, 0.1);
+  transition: all 0.3s ease;
+}
+
+/* Initials avatar */
+.user-avatar.initials {
   background: linear-gradient(135deg, #936AAC 0%, #6b4c80 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 3rem;
+  font-size: 3.5rem;
   color: white;
-  font-weight: 600;
-  box-shadow: 0 0 0 10px rgba(147, 106, 172, 0.2);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
 }
 
 .avatar-pulse {
@@ -160,55 +189,69 @@
 
 .user-name {
   color: white;
-  font-size: 2rem;
+  font-size: 2.25rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   text-align: center;
   word-break: break-word;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .user-title {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 1rem;
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 1.1rem;
   text-align: center;
-  margin: 0 0 0.5rem;
+  font-weight: 400;
 }
 
-.call-rate {
-  color: #936AAC;
-  font-size: 1.25rem;
-  font-weight: 600;
-  text-align: center;
-  margin: 0;
-}
-
-/* Timer Display */
-.call-timer {
-  background: rgba(147, 106, 172, 0.15);
-  border: 2px solid rgba(147, 106, 172, 0.3);
-  border-radius: 20px;
-  padding: 1rem 2rem;
+/* Call Info Section */
+.call-info-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   margin: 2rem 0;
-  text-align: center;
-  min-width: 200px;
+  min-height: 80px;
 }
 
-.timer-value {
+.call-rate-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  background: rgba(147, 106, 172, 0.2);
+  border-radius: 25px;
+  border: 1.5px solid rgba(147, 106, 172, 0.4);
+}
+
+.rate-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.rate-value {
   color: #936AAC;
-  font-size: 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(147, 106, 172, 0.5);
+}
+
+/* Call Duration Timer */
+.call-duration {
+  font-size: 2rem;
+  color: white;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.05em;
-  line-height: 1;
-}
-
-.timer-label {
-  color: rgba(147, 106, 172, 0.8);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-top: 0.5rem;
+  letter-spacing: 2px;
+  padding: 1rem 2rem;
+  background: rgba(147, 106, 172, 0.25);
+  border-radius: 25px;
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(147, 106, 172, 0.4);
+  box-shadow: 0 8px 20px rgba(147, 106, 172, 0.3);
+  min-width: 160px;
+  text-align: center;
 }
 
 /* Connecting Animation */
@@ -250,9 +293,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
+  gap: 2.5rem;
   width: 100%;
-  padding-top: 2rem;
+  padding-top: 2.5rem;
 }
 
 .control-btn {
@@ -263,71 +306,77 @@
   align-items: center;
   gap: 0.75rem;
   cursor: pointer;
-  transition: all 0.2s ease;
-  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  color: rgba(255, 255, 255, 0.8);
   padding: 0.5rem;
-  border-radius: 16px;
+  border-radius: 20px;
 }
 
 .control-btn:hover:not(:disabled) {
-  transform: translateY(-4px);
+  transform: translateY(-5px) scale(1.05);
   color: white;
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .control-btn:active:not(:disabled) {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1);
 }
 
 .control-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .icon-circle {
-  width: 64px;
-  height: 64px;
+  width: 70px;
+  height: 70px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  color: white;
+  font-size: 1.75rem;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .control-btn:hover:not(:disabled) .icon-circle {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  transform: scale(1.1);
 }
 
 .control-btn.active-state .icon-circle {
-  background: #936AAC;
-  box-shadow: 0 8px 20px rgba(147, 106, 172, 0.5);
+  background: linear-gradient(135deg, #936AAC 0%, #6b4c80 100%);
+  box-shadow: 0 8px 25px rgba(147, 106, 172, 0.6);
+  border-color: rgba(147, 106, 172, 0.4);
 }
 
 .control-btn.end-call-btn .icon-circle {
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  width: 80px;
-  height: 80px;
+  width: 85px;
+  height: 85px;
   font-size: 2rem;
-  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4);
-  animation: pulse-red 2s ease-in-out infinite;
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.5);
+  border: 3px solid rgba(239, 68, 68, 0.3);
+  animation: pulseRed 3s ease-in-out infinite;
 }
 
 .control-btn.end-call-btn:hover .icon-circle {
   background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  transform: scale(1.05);
-  box-shadow: 0 12px 32px rgba(239, 68, 68, 0.6);
+  transform: scale(1.15);
+  box-shadow: 0 15px 40px rgba(239, 68, 68, 0.7);
 }
 
-@keyframes pulse-red {
+@keyframes pulseRed {
   0%, 100% {
-    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4);
+    box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 12px 32px rgba(239, 68, 68, 0.6);
+    box-shadow: 0 15px 40px rgba(239, 68, 68, 0.7);
+    transform: scale(1.05);
   }
 }
 
