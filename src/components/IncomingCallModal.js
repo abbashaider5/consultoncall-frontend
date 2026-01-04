@@ -1,6 +1,6 @@
 import { faPhone, faPhoneSlash } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -9,126 +9,160 @@ import './IncomingCallModal.css';
 
 const IncomingCallModal = () => {
   const { user, expert } = useAuth();
-  const { incomingCall, acceptCall, rejectCall } = useSocket();
-  const [callerInfo, setCallerInfo] = useState(null);
+  const { socket, incomingCall, acceptCall, rejectCall } = useSocket();
+  const [accepting, setAccepting] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
 
-  const fetchCallerInfo = useCallback(async () => {
-    if (!incomingCall) return;
+  // Only experts should see this modal
+  if (user?.role !== 'expert') {
+    return null;
+  }
 
-    // Use caller info from socket payload if available
-    if (incomingCall.callerInfo) {
-      setCallerInfo({
-        name: incomingCall.callerInfo.name,
-        avatar: incomingCall.callerInfo.avatar
-      });
+  // Only show when there's an incoming call
+  if (!incomingCall) {
+    return null;
+  }
+
+  const handleAccept = async () => {
+    if (!incomingCall || accepting || rejecting) return;
+
+    const expertId = expert?._id || expert?.id || incomingCall.expertId;
+    if (!expertId) {
+      toast.error('Unable to accept call - missing expert ID');
       return;
     }
 
-    // Fallback to API call
     try {
-      const res = await axios.get(`/api/users/${incomingCall.callerId}`);
-      setCallerInfo(res.data);
-    } catch (error) {
-      console.error('Fetch caller info error:', error);
-      // Set a default caller if fetch fails
-      setCallerInfo({
-        name: 'User',
-        avatar: null
+      setAccepting(true);
+      console.log('📞 Expert accepting call:', incomingCall);
+
+      // Update backend first (source of truth)
+      const token = localStorage.getItem('token');
+      await axios.put(`/api/calls/accept/${incomingCall.callId}`, {}, {
+        headers: { 'x-auth-token': token }
       });
-    }
-  }, [incomingCall]);
 
-  useEffect(() => {
-    if (incomingCall) {
-      fetchCallerInfo();
+      console.log('✅ Call accepted in backend');
 
-      // Auto-reject after 30 seconds if not answered
-      const timeout = setTimeout(() => {
-        if (incomingCall) {
-          rejectCall({
-            callId: incomingCall.callId,
-            reason: 'No answer - timeout'
-          });
-          toast.info('Call missed - auto-rejected');
+      // Emit call_accepted via socket (notify caller)
+      socket.emit('call_accepted', {
+        callId: incomingCall.callId,
+        userId: incomingCall.userId,
+        expertId: expertId
+      });
+
+      console.log('✅ Emitted call_accepted to caller');
+
+      // SocketContext will handle setting activeCall
+      // This will trigger AgoraAudioCall to initialize
+      acceptCall({
+        callId: incomingCall.callId,
+        userId: incomingCall.userId,
+        expertId: expertId,
+        callerInfo: incomingCall.caller || {
+          name: incomingCall.callerInfo?.name || 'Caller',
+          avatar: incomingCall.callerInfo?.avatar || null
         }
-      }, 30000);
+      });
 
-      // Vibrate if supported
-      if ('vibrate' in navigator) {
-        navigator.vibrate([200, 100, 200, 100, 200]);
-      }
+      toast.success('Call accepted! Connecting...', { position: 'top-center' });
 
-      return () => {
-        clearTimeout(timeout);
-      };
+    } catch (error) {
+      console.error('❌ Error accepting call:', error);
+      toast.error(error.response?.data?.message || 'Failed to accept call');
+      setAccepting(false);
     }
-  }, [incomingCall, fetchCallerInfo, rejectCall]);
-
-  const handleAccept = () => {
-    if (!incomingCall) return;
-
-    // Determine current user id (expert or regular user)
-    const currentUserId = (expert && (expert._id || expert.id)) || (user && (user._id || user.id));
-    if (!currentUserId) {
-      toast.error('Unable to accept call: user not identified');
-      return;
-    }
-
-    // Pass data as object
-    acceptCall({
-      callId: incomingCall.callId,
-      userId: incomingCall.callerId,
-      expertId: currentUserId,
-      callerInfo: incomingCall.callerInfo
-    });
-    toast.success('Accepted');
   };
 
-  const handleReject = () => {
-    if (!incomingCall) return;
-    // Pass data as object
-    rejectCall({
-      callId: incomingCall.callId,
-      reason: 'User declined'
-    });
+  const handleReject = async (reason = 'Expert declined') => {
+    if (!incomingCall || accepting || rejecting) return;
+
+    try {
+      setRejecting(true);
+      console.log('📞 Expert rejecting call:', incomingCall);
+
+      // Update backend
+      const token = localStorage.getItem('token');
+      await axios.put(`/api/calls/reject/${incomingCall.callId}`, { reason }, {
+        headers: { 'x-auth-token': token }
+      });
+
+      console.log('✅ Call rejected in backend');
+
+      // Emit call_rejected via socket (notify caller)
+      socket.emit('call_rejected', {
+        callId: incomingCall.callId,
+        userId: incomingCall.userId,
+        expertId: expert?._id || expert?.id,
+        reason
+      });
+
+      console.log('✅ Emitted call_rejected to caller');
+
+      // Clear incoming call state
+      rejectCall({ callId: incomingCall.callId, reason });
+
+      toast.info('Call declined', { position: 'top-center' });
+
+    } catch (error) {
+      console.error('❌ Error rejecting call:', error);
+      toast.error('Failed to decline call');
+      setRejecting(false);
+    }
   };
 
-  if (!incomingCall) return null;
+  const callerName = incomingCall.callerInfo?.name || 
+                     incomingCall.caller?.name || 
+                     'Caller';
+  const callerAvatar = incomingCall.callerInfo?.avatar || 
+                      incomingCall.caller?.avatar;
 
   return (
-    <div className="incoming-modal-overlay">
-      <div className="incoming-modal-content">
-
-        {/* Caller Info Header */}
-        <div className="caller-display">
-          <div className="caller-avatar-stage-b">
-            {callerInfo?.avatar ? (
-              <img src={callerInfo.avatar} alt={callerInfo.name} />
+    <div className="call-modal-overlay">
+      <div className="call-modal-content stage-a">
+        <div className="expert-display">
+          <div className="expert-avatar pulsing">
+            {callerAvatar ? (
+              <img src={callerAvatar} alt={callerName} />
             ) : (
-              <span className="initials">{callerInfo?.name?.[0] || '?'}</span>
+              <span className="initials">{callerName?.[0] || '?'}</span>
             )}
           </div>
-          <h2 className="caller-name-b">{callerInfo?.name || 'Incoming Call'}</h2>
-          <p className="call-status-b">Incoming Audio Call...</p>
+
+          <div className="expert-details-text">
+            <h2>{callerName}</h2>
+            <p className="specialization">Incoming Call</p>
+            <p className="status-label">Incoming...</p>
+          </div>
         </div>
 
-        {/* Action Buttons: 2 Large Circles */}
-        <div className="incoming-actions-b">
-
-          {/* Decline Button */}
-          <button className="action-circle decline" onClick={handleReject}>
-            <FontAwesomeIcon icon={faPhoneSlash} className="icon-b" />
-            <span className="label-b">Decline</span>
+        <div className="call-controls-footer">
+          <button 
+            className="control-btn end-call-btn" 
+            onClick={() => handleReject()}
+            disabled={rejecting}
+          >
+            <div className="icon-circle">
+              <FontAwesomeIcon icon={faPhoneSlash} />
+            </div>
+            <span className="btn-label">
+              {rejecting ? 'Declining...' : 'Reject'}
+            </span>
           </button>
 
-          {/* Accept Button */}
-          <button className="action-circle accept" onClick={handleAccept}>
-            <FontAwesomeIcon icon={faPhone} className="icon-b shake-animation" />
-            <span className="label-b">Accept</span>
+          <button 
+            className="control-btn accept-call-btn" 
+            onClick={handleAccept}
+            disabled={accepting}
+          >
+            <div className="icon-circle">
+              <FontAwesomeIcon icon={faPhone} />
+            </div>
+            <span className="btn-label">
+              {accepting ? 'Accepting...' : 'Accept'}
+            </span>
           </button>
-
         </div>
-
       </div>
     </div>
   );

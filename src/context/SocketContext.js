@@ -314,35 +314,13 @@ export const SocketProvider = ({ children }) => {
     };
   }, [isAuthenticated, isExpert, user, expert]);
 
-  // Initiate call (caller side) - Just notification, actual call via Agora
+    // Initiate call (caller side) - Just notification, actual call via Agora
+  // NOTE: This is no longer used - CallModal emits 'incoming_call' directly
+  // Kept for backwards compatibility but should not set activeCall
   const initiateCall = useCallback((data) => {
-    if (!socket || !isConnected) {
-      return Promise.resolve({ success: false, error: 'Socket not connected' });
-    }
-
-    const callerId = isExpert ? (expert?._id || expert?.id) : (user?._id || user?.id);
-    const payload = {
-      ...data,
-      ...(callerId ? { userId: data.userId || callerId } : {})
-    };
-
-    console.log('📞 Emitting call:initiate for notification');
-
-    // Set activeCall immediately to show modal in "Ringing" state
-    setActiveCall({
-      callId: data.callId,
-      userId: data.userId,
-      expertId: data.expertId,
-      status: 'ringing',
-      startTime: null,
-      callerInfo: data.callerInfo || { name: 'Calling...', avatar: null }
-    });
-
-    return new Promise((resolve) => {
-      socket.emit('call:initiate', payload, (response) => {
-        resolve(response || { success: true });
-      });
-    });
+    console.log('⚠️ initiateCall called - this should not be used anymore');
+    // Do NOT set activeCall here - let call_accepted event do it
+    return Promise.resolve({ success: true });
   }, [socket, isConnected, isExpert, user, expert]);
 
   // Expert accepts call (expert side)

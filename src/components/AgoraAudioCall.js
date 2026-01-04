@@ -35,8 +35,14 @@ const AgoraAudioCall = () => {
   }, [activeCall?.status]);
 
   // Initialize Agora client only when call is accepted
+  // CRITICAL: Only join Agora AFTER expert accepts, NOT before
   useEffect(() => {
-    if (!activeCall || activeCall.status !== 'accepted') return;
+    if (!activeCall || activeCall.status !== 'accepted') {
+      console.log('🔌 Waiting for call to be accepted... current status:', activeCall?.status);
+      return;
+    }
+
+    console.log('✅ Call accepted, initializing Agora...');
 
     const initAgora = async () => {
       try {

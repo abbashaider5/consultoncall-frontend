@@ -9,7 +9,7 @@ import VerifiedBadge from './VerifiedBadge';
 
 const CallModal = ({ expert, onClose }) => {
   const { user } = useAuth();
-  const { initiateCall } = useSocket();
+  const { socket, isConnected } = useSocket();
   const [loading, setLoading] = useState(false);
 
   const handleStartCall = async () => {
@@ -27,6 +27,13 @@ const CallModal = ({ expert, onClose }) => {
         return;
       }
 
+      // Check socket connection
+      if (!socket || !isConnected) {
+        toast.error('Not connected to server. Please wait...');
+        setLoading(false);
+        return;
+      }
+
       // Create call in database
       console.log('📞 Creating call in database...');
       const res = await axios.post('/api/calls/initiate', {
@@ -36,26 +43,56 @@ const CallModal = ({ expert, onClose }) => {
       console.log('✅ Call created in DB:', res.data);
       const newCallId = res.data.call.id;
 
-      // Notify expert via socket (for incoming call UI only)
-      // Actual audio connection will be via Agora
-      console.log('📡 Notifying expert via socket...');
-      await initiateCall({
+      // Emit incoming_call to expert ONLY (NOT setting activeCall yet)
+      console.log('📡 Emitting incoming_call to expert:', expert._id);
+      socket.emit('incoming_call', {
         callId: newCallId,
-        expertId: expert._id,
         userId: user._id,
-        callerInfo: {
+        expertId: expert._id,
+        caller: {
           name: user.name,
           avatar: user.avatar
         }
       });
 
-      console.log('✅ Call initiated successfully - AgoraAudioCall will open');
-      onClose(); // Close this modal, AgoraAudioCall takes over
+      console.log('✅ Incoming call sent to expert - waiting for acceptance');
+      onClose(); // Close this modal
+      
+      // Show "Calling..." toast
+      toast.info(`📞 Calling ${expert.user?.name}...`, {
+        position: 'top-center',
+        autoClose: false,
+        toastId: 'calling-toast',
+        closeOnClick: false
+      });
+
+      // Listen for call_accepted response
+      socket.once('call_accepted', (data) => {
+        console.log('✅ Expert accepted call:', data);
+        toast.dismiss('calling-toast');
+        toast.success('Call accepted! Connecting...', { position: 'top-center' });
+        // SocketContext will handle setting activeCall
+      });
+
+      // Listen for call_rejected response
+      socket.once('call_rejected', (data) => {
+        console.log('❌ Expert rejected call:', data);
+        toast.dismiss('calling-toast');
+        toast.error(data.reason || 'Call declined', { position: 'top-center' });
+      });
+
+      // Listen for call_timeout response
+      socket.once('call_timeout', (data) => {
+        console.log('⏱️ Call timeout:', data);
+        toast.dismiss('calling-toast');
+        toast.error('Call timed out. Expert did not respond.', { position: 'top-center' });
+      });
 
     } catch (error) {
       console.error('❌ Start call error:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Call failed. Please try again.';
       toast.error(errorMessage);
+      toast.dismiss('calling-toast');
       setLoading(false);
     }
   };
