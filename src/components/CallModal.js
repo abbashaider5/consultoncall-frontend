@@ -9,7 +9,7 @@ import VerifiedBadge from './VerifiedBadge';
 
 const CallModal = ({ expert, onClose }) => {
   const { user } = useAuth();
-  const { initiateCall, isConnected, connectionError } = useSocket();
+  const { initiateCall, isConnected, connectionError, canExpertReceiveCall, isExpertOnline, isExpertBusy } = useSocket();
   const [loading, setLoading] = useState(false);
 
   const handleStartCall = async () => {
@@ -19,9 +19,36 @@ const CallModal = ({ expert, onClose }) => {
       setLoading(true);
       console.log('🚀 Starting call flow...', { expert, user });
 
+      // Check if user's socket is connected
       if (!isConnected) {
         console.error('❌ Socket not connected:', connectionError);
         toast.error('Connection lost. Please refresh the page.');
+        setLoading(false);
+        return;
+      }
+
+      // Check expert's real-time socket status BEFORE initiating call
+      const expertCanReceive = canExpertReceiveCall(expert._id);
+      const expertIsOnline = isExpertOnline(expert._id);
+      const expertIsBusy = isExpertBusy(expert._id);
+
+      console.log('🔍 Expert socket status check:', {
+        expertId: expert._id,
+        canReceive: expertCanReceive,
+        isOnline: expertIsOnline,
+        isBusy: expertIsBusy
+      });
+
+      if (!expertIsOnline) {
+        console.error('❌ Expert is offline (not connected to socket server)');
+        toast.error('Expert is currently offline. Please try again later.');
+        setLoading(false);
+        return;
+      }
+
+      if (expertIsBusy) {
+        console.error('❌ Expert is busy on another call');
+        toast.error('Expert is currently on another call. Please try again later.');
         setLoading(false);
         return;
       }

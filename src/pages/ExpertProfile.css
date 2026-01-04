@@ -341,7 +341,7 @@
     align-items: center;
     gap: 6px;
     font-size: 0.8125rem;
-    color: var(--text-primary);
+    color: var(--primary-color);
 }
 
 .stat-icon {
@@ -356,9 +356,9 @@
 
 .stat-number {
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--primary-color);
     font-size: 0.9375rem;
-    min-width: 24px;
+    min-width: 10spx;
 }
 
 .stat-label {
