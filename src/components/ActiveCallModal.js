@@ -368,13 +368,14 @@ const ActiveCallModal = () => {
         console.error('❌ ICE connection failed - ending call');
         toast.error('Connection failed. Please try again.');
         handleEndCall();
-      } else if (pc.iceConnectionState === 'disconnected') {
-        console.warn('⚠️ ICE disconnected - waiting for reconnect...');
-        // Do NOT end call - ICE may recover
+      } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'closed') {
+        console.warn('⚠️ ICE disconnected/closed - ending call gracefully');
+        // ICE disconnected/closed means call should end
+        handleEndCall();
       }
     };
 
-    // Handle connection state - SECONDARY AUTHORITY
+    // Handle connection state - SECONDARY AUTHORITY with fallback
     pc.onconnectionstatechange = () => {
       console.log('🔗 WebRTC connection state:', pc.connectionState);
       
@@ -386,8 +387,17 @@ const ActiveCallModal = () => {
         toast.error('Connection failed. Please try again.');
         handleEndCall();
       } else if (pc.connectionState === 'disconnected') {
-        console.warn('⚠️ WebRTC disconnected but not failed - may recover...');
-        // Do NOT end call - connection may recover
+        console.warn('⚠️ WebRTC disconnected - waiting for recovery...');
+        // Wait 5 seconds for recovery, then end if still disconnected
+        setTimeout(() => {
+          if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
+            console.warn('⚠️ WebRTC did not recover - ending call');
+            handleEndCall();
+          }
+        }, 5000);
+      } else if (pc.connectionState === 'closed') {
+        console.warn('⚠️ WebRTC connection closed - ending call');
+        handleEndCall();
       }
     };
 

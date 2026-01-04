@@ -193,7 +193,7 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on('reconnect_failed', () => {
       console.error('❌ Failed to reconnect after 10 attempts');
-      setConnectionError('Failed to connect to server. Please refresh the page.');
+      setConnectionError('Failed to connect to server. Please refresh page.');
     });
 
     newSocket.on('connect_error', (err) => {
@@ -569,7 +569,6 @@ export const SocketProvider = ({ children }) => {
     }
   }, [socket]);
 
-
   // Chat functions
   const sendMessage = useCallback((receiverId, content, type = 'text', meta = {}) => {
     if (!socket || !isConnected) {
@@ -626,7 +625,6 @@ export const SocketProvider = ({ children }) => {
       socket.emit('message_read', { senderId, messageIds });
     }
   }, [socket, isConnected]);
-
 
   const isExpertBusy = useCallback((expertId) => {
     return busyExperts.has(expertId);
@@ -716,8 +714,7 @@ export const SocketProvider = ({ children }) => {
     joinChatRoom,
     leaveChatRoom,
     sendTyping,
-    markMessagesRead
-    ,
+    markMessagesRead,
     clearUnreadCount
   };
 
