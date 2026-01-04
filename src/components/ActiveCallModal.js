@@ -32,9 +32,20 @@ const ActiveCallModal = () => {
   // Theme color constant
   const THEME_COLOR = '#936AAC';
 
+  // Refs for state management
+  const localStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
+  const peerConnectionRef = useRef(null);
+  const timerRef = useRef(null);
+  const hasStartedCallRef = useRef(false);
+  const billingStartedRef = useRef(false);
+  const hasSetupPeerConnectionRef = useRef(false);
+  const iceCandidateQueue = useRef([]);
+  const socketConnectedRef = useRef(false);
+
   // Reset all state and refs
   const resetAll = useCallback(() => {
-    setCallStatus('connecting');
+    setCallStatus('idle');
     setDuration(0);
     setIsMuted(false);
     setIsSpeakerOn(false);
@@ -65,6 +76,10 @@ const ActiveCallModal = () => {
       peerConnectionRef.current = null;
     }
 
+    // Reset refs
+    hasSetupPeerConnectionRef.current = false;
+    iceCandidateQueue.current = [];
+
     // Clean up audio elements
     const localAudio = document.getElementById('localAudio');
     const remoteAudio = document.getElementById('remoteAudio');
@@ -76,12 +91,36 @@ const ActiveCallModal = () => {
     }
   }, []);
 
-  const localStreamRef = useRef(null);
-  const remoteStreamRef = useRef(null);
-  const peerConnectionRef = useRef(null);
-  const timerRef = useRef(null);
-  const hasStartedCallRef = useRef(false);
-  const billingStartedRef = useRef(false);
+  // Track socket connection state for ICE candidate queuing
+  useEffect(() => {
+    socketConnectedRef.current = socket?.connected || false;
+  }, [socket?.connected]);
+
+  // Flush queued ICE candidates when socket reconnects
+  useEffect(() => {
+    if (socketConnectedRef.current && !socket?.connected) {
+      // Socket just disconnected
+      console.log('🔌 Socket disconnected, stopping ICE sends');
+      socketConnectedRef.current = false;
+    } else if (!socketConnectedRef.current && socket?.connected) {
+      // Socket just reconnected
+      console.log('✅ Socket reconnected, flushing ICE queue');
+      socketConnectedRef.current = true;
+      
+      // Send all queued ICE candidates
+      const queue = [...iceCandidateQueue.current];
+      iceCandidateQueue.current = [];
+      
+      queue.forEach(candidate => {
+        console.log('📤 Sending queued ICE candidate');
+        sendIceCandidate({ callId: activeCall?.callId, candidate });
+      });
+      
+      if (queue.length > 0) {
+        console.log(`✅ Flushed ${queue.length} queued ICE candidates`);
+      }
+    }
+  }, [socket?.connected, activeCall?.callId, sendIceCandidate]);
 
   // Listen for call ended event directly
   useEffect(() => {
@@ -92,6 +131,8 @@ const ActiveCallModal = () => {
 
     setIsVisible(true);
     setForceClose(false);
+    hasSetupPeerConnectionRef.current = false;
+    iceCandidateQueue.current = [];
     
     const handleCallEnded = (data) => {
       console.log('🔚 Call ended event received in ActiveCallModal:', data);
@@ -254,8 +295,8 @@ const ActiveCallModal = () => {
   }, [user, activeCall, duration, callStatus, endCall, updateTokens, resetAll]);
 
   const setupPeerConnection = useCallback(async () => {
-    if (!activeCall || peerConnectionRef.current) {
-      console.warn('⚠️ Skipping WebRTC setup - activeCall:', !!activeCall, 'pc exists:', !!peerConnectionRef.current);
+    if (!activeCall || peerConnectionRef.current || hasSetupPeerConnectionRef.current) {
+      console.warn('⚠️ Skipping WebRTC setup - activeCall:', !!activeCall, 'pc exists:', !!peerConnectionRef.current, 'hasSetup:', hasSetupPeerConnectionRef.current);
       return;
     }
 
@@ -354,7 +395,7 @@ const ActiveCallModal = () => {
       playAudio();
     };
 
-    // Handle ICE candidates
+    // Handle ICE candidates with queuing for socket reconnects
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         console.log('🧊 ICE candidate generated:', {
@@ -363,7 +404,15 @@ const ActiveCallModal = () => {
           address: event.candidate.address,
           port: event.candidate.port
         });
-        sendIceCandidate({ callId: activeCall.callId, candidate: event.candidate });
+        
+        // Queue ICE candidate if socket is disconnected
+        if (socketConnectedRef.current && socket?.connected) {
+          console.log('📤 Sending ICE candidate immediately (socket connected)');
+          sendIceCandidate({ callId: activeCall.callId, candidate: event.candidate });
+        } else {
+          console.log('📤 Queueing ICE candidate (socket disconnected)');
+          iceCandidateQueue.current.push(event.candidate);
+        }
       } else {
         console.log('🧊 ICE gathering complete');
       }
@@ -687,11 +736,14 @@ const ActiveCallModal = () => {
   // Setup WebRTC when call is accepted
   useEffect(() => {
     // Only setup WebRTC when call is accepted
-    if (activeCall && activeCall.status === 'accepted' && !peerConnectionRef.current) {
+    if (activeCall && activeCall.status === 'accepted' && !hasSetupPeerConnectionRef.current && !peerConnectionRef.current) {
       console.log('🚀 Initiating WebRTC setup for call:', activeCall.callId);
       console.log('🔍 Current user role:', user?.role);
       console.log('🔍 Active call details:', JSON.stringify(activeCall, null, 2));
       setCallStatus('connecting');
+      
+      // Mark that we're setting up peer connection (prevent duplicates)
+      hasSetupPeerConnectionRef.current = true;
       
       // Add small delay to ensure socket signaling is ready
       setTimeout(() => {
@@ -718,7 +770,7 @@ const ActiveCallModal = () => {
         connectionTimeoutRef.current = null;
       }
     };
-  }, [activeCall, setupPeerConnection, callStatus, handleEndCall, user?.role]);
+  }, [activeCall, activeCall?.status, setupPeerConnection, callStatus, handleEndCall, user?.role]);
 
   // Handle WebRTC signaling events
   useEffect(() => {
