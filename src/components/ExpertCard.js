@@ -61,6 +61,8 @@ const ExpertCard = ({ expert }) => {
       ? socketContext.getExpertStatus
       : () => ({ text: 'Offline', color: '#6c757d' });
 
+  // Use expert.isOnline from API data as primary source
+  // Socket events will update this real-time
   const isOnline = expert.isOnline || isExpertOnlineFn(expert._id);
 
   const isBusy = isExpertBusyFn(expert._id) || expert.isBusy || false;

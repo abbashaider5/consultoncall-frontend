@@ -332,10 +332,32 @@ const ExpertProfile = () => {
     return 'offline';
   };
 
+  const formatLastSeen = (lastSeenDate) => {
+    if (!lastSeenDate) return 'Recently';
+    
+    const now = new Date();
+    const lastSeen = new Date(lastSeenDate);
+    const diffMs = now - lastSeen;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? 's' : ''} ago`;
+    
+    return lastSeen.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
   const getStatusMessage = () => {
     if (isBusy) return 'Currently in another call';
     if (isOnline) return 'Available for call now';
-    if (isAway) return 'Will be back soon';
+    if (isAway) return `Last seen ${formatLastSeen(expert.lastSeen)}`;
     return 'Not available right now';
   };
 
@@ -510,6 +532,12 @@ const ExpertProfile = () => {
 
               <div className="status-message">
                 {getStatusMessage()}
+                {!isOnline && !isBusy && expert.lastSeen && (
+                  <div className="last-seen-detail">
+                    <FiClock className="last-seen-icon" />
+                    <span>Last seen {formatLastSeen(expert.lastSeen)}</span>
+                  </div>
+                )}
               </div>
 
               <div className="rate-features">
