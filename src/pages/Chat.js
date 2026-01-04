@@ -22,6 +22,7 @@ const Chat = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [isBlockedByOther, setIsBlockedByOther] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef(null);
@@ -186,20 +187,27 @@ const Chat = () => {
   // Check if user is blocked when chat is selected
   useEffect(() => {
     const checkBlockStatus = async () => {
-      if (!selectedChat || !isExpert) return;
+      if (!selectedChat) return;
       const other = getOtherParticipant(selectedChat);
       if (!other) return;
 
       try {
+        // Check if current user has blocked the other user
         const { data } = await axios.get('/api/users/blocked');
         const blockedIds = data.map(u => u._id);
-        setIsBlocked(blockedIds.includes(other._id));
+        const hasBlocked = blockedIds.includes(other._id);
+        setIsBlocked(hasBlocked);
+
+        // Check if other user has blocked current user by trying to check their profile
+        // We'll detect this when trying to send a message
+        setIsBlockedByOther(false);
       } catch {
         setIsBlocked(false);
+        setIsBlockedByOther(false);
       }
     };
     checkBlockStatus();
-  }, [selectedChat, isExpert]);
+  }, [selectedChat]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -237,7 +245,16 @@ const Chat = () => {
 
     } catch (error) {
       console.error('Send message error:', error);
-      toast.error(error.response?.data?.message || 'Failed to send message');
+      
+      // Check if blocked by other user
+      const errorMessage = error.response?.data?.message;
+      if (errorMessage?.includes('blocked by this user') || errorMessage?.includes('cannot send messages')) {
+        setIsBlockedByOther(true);
+        toast.error(errorMessage);
+      } else {
+        toast.error(errorMessage || 'Failed to send message');
+      }
+      
       setMessages(prev => prev.map(msg => 
         msg._id === tempMessage._id ? { ...msg, status: 'failed' } : msg
       ));
@@ -428,16 +445,14 @@ const Chat = () => {
                 </div>
               </div>
               <div className="chat-header-actions">
-                {isExpert && (
-                  <button
-                    className={`chat-options-btn ${isBlocked ? 'unblock-btn' : 'block-btn'}`}
-                    onClick={handleBlockToggle}
-                    title={isBlocked ? 'Unblock User' : 'Block User'}
-                  >
-                    <FiSlash style={{ marginRight: '4px' }} />
-                    {isBlocked ? 'Unblock' : 'Block'}
-                  </button>
-                )}
+                <button
+                  className={`chat-options-btn ${isBlocked ? 'unblock-btn' : 'block-btn'}`}
+                  onClick={handleBlockToggle}
+                  title={isBlocked ? 'Unblock User' : 'Block User'}
+                >
+                  <FiSlash style={{ marginRight: '4px' }} />
+                  {isBlocked ? 'Unblock' : 'Block'}
+                </button>
                 <button
                   className="chat-options-btn delete-btn"
                   onClick={() => handleDeleteChat(selectedChat._id)}
@@ -493,7 +508,7 @@ const Chat = () => {
                             {!isOwn && (
                               <span className="sender-name">{getOtherParticipant(selectedChat)?.name}</span>
                             )}
-                            <div className="message-bubble">
+                            <div className={`message-bubble ${isOwn ? 'sent' : 'received'}`}>
                               <p>{msg.content}</p>
                               <div className="message-meta">
                                 <span className="message-time">{formatTime(msg.createdAt)}</span>
@@ -515,18 +530,24 @@ const Chat = () => {
             </div>
 
             {/* Message Input */}
-            {isBlocked ? (
+            {isBlockedByOther ? (
+              <div className="blocked-input-notice blocked-by-other">
+                <div className="blocked-icon">🚫</div>
+                <div className="blocked-text">
+                  <strong>You are blocked</strong>
+                  <p>This expert has blocked you. You cannot send messages.</p>
+                </div>
+              </div>
+            ) : isBlocked ? (
               <div className="blocked-input-notice">
                 <div className="blocked-icon">🚫</div>
                 <div className="blocked-text">
                   <strong>Conversation Blocked</strong>
                   <p>You have blocked this user. Unblock to send messages.</p>
                 </div>
-                {isExpert && (
-                  <button className="unblock-btn" onClick={handleBlockToggle}>
-                    Unblock
-                  </button>
-                )}
+                <button className="unblock-btn" onClick={handleBlockToggle}>
+                  Unblock
+                </button>
               </div>
             ) : (
               <form className="message-input-container" onSubmit={handleSendMessage}>

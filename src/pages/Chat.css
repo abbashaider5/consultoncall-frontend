@@ -706,6 +706,19 @@
     border-top: 1px solid #ffccc7;
 }
 
+.blocked-input-notice.blocked-by-other {
+    background: #fff7e6;
+    border-top: 1px solid #ffd591;
+}
+
+.blocked-input-notice.blocked-by-other .blocked-text strong {
+    color: #d46b08;
+}
+
+.blocked-input-notice.blocked-by-other .blocked-text p {
+    color: var(--text-secondary);
+}
+
 .blocked-input-notice .blocked-icon {
     font-size: 2rem;
     flex-shrink: 0;
