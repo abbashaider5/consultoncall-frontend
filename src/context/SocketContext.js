@@ -125,6 +125,15 @@ export const SocketProvider = ({ children }) => {
       const userId = isExpert ? (expert?._id || expert?.id) : (user?._id || user?.id);
       const userType = isExpert ? 'expert' : 'user';
 
+      console.log('📋 Registration Details:', {
+        userId,
+        userType,
+        isExpert,
+        hasExpertProfile: !!expert,
+        expertId: expert?._id,
+        userRole: user?.role
+      });
+
       if (userId) {
         console.log(`📝 Registering as ${userType}:`, userId);
         newSocket.emit('register', { userId, userType });
@@ -248,15 +257,26 @@ export const SocketProvider = ({ children }) => {
     // Incoming call (for experts) - Only for notification, actual call handled by Agora
     newSocket.on('incoming_call', (data) => {
       console.log('📞 INCOMING CALL NOTIFICATION:', JSON.stringify(data, null, 2));
+      console.log('👤 Expert receiving call:', {
+        myUserId: user?._id,
+        myExpertId: expert?._id,
+        myRole: user?.role,
+        isExpert,
+        targetExpertId: data.expertId,
+        shouldShowModal: isExpert || !!expert || user?.role === 'expert'
+      });
       
       const incomingCallData = {
         callId: data.callId,
         userId: data.userId,
         expertId: data.expertId,
+        status: 'ringing', // Explicit status
         callerInfo: data.caller
       };
       
+      console.log('✅ Setting incomingCall state:', incomingCallData);
       setIncomingCall(incomingCallData);
+      console.log('✅ IncomingCallModal should now be visible');
     });
 
     // Call accepted (for users)

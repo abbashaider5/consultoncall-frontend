@@ -8,20 +8,32 @@ import { useSocket } from '../context/SocketContext';
 import './IncomingCallModal.css';
 
 const IncomingCallModal = () => {
-  const { user, expert } = useAuth();
+  const { user, expert, isExpert } = useAuth();
   const { socket, incomingCall, acceptCall, rejectCall } = useSocket();
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
-
-  // Only experts should see this modal
-  if (user?.role !== 'expert') {
-    return null;
-  }
 
   // Only show when there's an incoming call
   if (!incomingCall) {
     return null;
   }
+
+  // Only experts should see this modal
+  if (!isExpert && !expert && user?.role !== 'expert') {
+    console.log('🚫 IncomingCallModal: Not an expert, not rendering');
+    console.log('👤 User info:', { 
+      userRole: user?.role, 
+      hasExpert: !!expert, 
+      isExpert, 
+      expertId: expert?._id 
+    });
+    return null;
+  }
+
+  console.log('✅ IncomingCallModal: Rendering for expert', {
+    callerName: incomingCall.callerInfo?.name,
+    callId: incomingCall.callId
+  });
 
   const handleAccept = async () => {
     if (!incomingCall || accepting || rejecting) return;
