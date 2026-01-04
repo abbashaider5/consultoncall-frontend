@@ -1,46 +1,56 @@
 /* ========================================
-   SLEEK ACTIVE CALL MODAL - MODERN DESIGN
+   ACTIVE CALL MODAL - CONSISTENT WITH CALL MODAL
    Theme: #936AAC (Primary Purple)
    ======================================== */
 
+/* ========================================
+   GLOBAL OVERLAY - MATCH CALL MODAL
+   ======================================== */
 .active-call-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  background: linear-gradient(135deg, rgba(147, 106, 172, 0.3) 0%, rgba(15, 23, 42, 0.85) 100%);
-  animation: fadeIn 0.4s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.5);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  animation: fadeIn 0.3s ease;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-/* Main Modal Card */
+/* ========================================
+   MAIN MODAL CARD - MATCH CALL MODAL STAGE C
+   ======================================== */
 .active-call-modal {
-  width: 100%;
-  max-width: 450px;
-  height: 100%;
-  max-height: 720px;
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-  border-radius: 0;
-  padding: 3rem 2.5rem 3rem;
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6);
-  position: relative;
+  width: 90%;
+  max-width: 420px;
+  background: linear-gradient(135deg, rgba(31, 41, 55, 0.98) 0%, rgba(17, 24, 39, 0.98) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 28px;
+  padding: 2.5rem 2rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  color: white;
-  animation: slideUpModal 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  overflow: hidden;
+  animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-@keyframes slideUpModal {
+@keyframes slideUp {
   from {
     transform: translateY(100px);
     opacity: 0;
@@ -51,108 +61,105 @@
   }
 }
 
-@media (min-width: 640px) {
-  .active-call-modal {
-    height: auto;
-    min-height: 650px;
-    border-radius: 36px;
-    border: 2px solid rgba(147, 106, 172, 0.3);
-  }
-}
-
-/* Status Badge at Top */
+/* ========================================
+   STATUS BADGE
+   ======================================== */
 .call-status-badge {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2.5rem;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
 }
 
 .status-dot {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  box-shadow: 0 0 20px currentColor;
-  animation: pulseGlow 2s ease-in-out infinite;
+  animation: pulse 2s ease-in-out infinite;
 }
 
-@keyframes pulseGlow {
-  0%, 100% { 
-    transform: scale(1); 
+@keyframes pulse {
+  0%, 100% {
     opacity: 1;
-    box-shadow: 0 0 20px currentColor;
+    transform: scale(1);
   }
-  50% { 
-    transform: scale(1.3); 
-    opacity: 0.6;
-    box-shadow: 0 0 30px currentColor;
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
   }
 }
 
 .status-text {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.95rem;
   font-weight: 600;
-  letter-spacing: 1.5px;
   text-transform: uppercase;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  letter-spacing: 1.5px;
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
 }
 
-/* User Avatar Section */
+/* ========================================
+   USER SECTION - MATCH CALL MODAL EXPERT DISPLAY
+   ======================================== */
 .call-user-section {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
-  justify-content: center;
+  text-align: center;
+  margin-bottom: 2rem;
   width: 100%;
 }
 
 .user-avatar-wrapper {
   position: relative;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .user-avatar {
-  width: 160px;
-  height: 160px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
   object-fit: cover;
-  border: 6px solid rgba(147, 106, 172, 0.4);
-  box-shadow: 0 15px 40px rgba(147, 106, 172, 0.3), 0 0 0 15px rgba(147, 106, 172, 0.1);
-  transition: all 0.3s ease;
-}
-
-/* Initials avatar */
-.user-avatar.initials {
-  background: linear-gradient(135deg, #936AAC 0%, #6b4c80 100%);
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  position: relative;
+  background: rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 3.5rem;
-  color: white;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 2px;
 }
 
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-avatar.initials {
+  font-size: 3rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Pulse Animation for Connecting State */
 .avatar-pulse {
   position: absolute;
-  inset: -15px;
-  border: 3px solid rgba(147, 106, 172, 0.4);
+  inset: -4px;
   border-radius: 50%;
-  animation: ripple 2s ease-out infinite;
-  z-index: -1;
+  border: 3px solid rgba(147, 106, 172, 0.4);
+  animation: pulse-ring 2s infinite;
 }
 
-@keyframes ripple {
+@keyframes pulse-ring {
   0% {
     transform: scale(1);
     opacity: 0.8;
   }
   100% {
-    transform: scale(1.4);
+    transform: scale(1.6);
     opacity: 0;
   }
 }
@@ -160,19 +167,19 @@
 /* Audio Indicator - shows when audio is playing */
 .audio-indicator {
   position: absolute;
-  bottom: -5px;
+  bottom: 0;
   right: -5px;
   display: flex;
   gap: 3px;
-  background: rgba(16, 185, 129, 0.9);
-  padding: 8px;
+  background: rgba(34, 197, 94, 0.9);
+  padding: 6px;
   border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
 }
 
 .audio-wave {
   width: 4px;
-  height: 16px;
+  height: 14px;
   background: white;
   border-radius: 2px;
   animation: audioWave 1s ease-in-out infinite;
@@ -184,33 +191,32 @@
 
 @keyframes audioWave {
   0%, 100% { height: 4px; }
-  50% { height: 16px; }
+  50% { height: 14px; }
 }
 
 .user-name {
-  color: white;
-  font-size: 2.25rem;
+  color: #fff;
+  font-size: 1.75rem;
   font-weight: 700;
-  margin-bottom: 0.75rem;
-  text-align: center;
-  word-break: break-word;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
 }
 
 .user-title {
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 1.1rem;
-  text-align: center;
-  font-weight: 400;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1rem;
+  font-weight: 500;
 }
 
-/* Call Info Section */
+/* ========================================
+   CALL INFO SECTION - RATE AND DURATION
+   ======================================== */
 .call-info-section {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  margin: 2rem 0;
+  margin: 1.5rem 0 2rem;
   min-height: 80px;
 }
 
@@ -219,13 +225,13 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.25rem;
-  background: rgba(147, 106, 172, 0.2);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 25px;
-  border: 1.5px solid rgba(147, 106, 172, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .rate-label {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 0.9rem;
   font-weight: 500;
 }
@@ -234,50 +240,44 @@
   color: #936AAC;
   font-size: 1.1rem;
   font-weight: 700;
-  text-shadow: 0 0 10px rgba(147, 106, 172, 0.5);
 }
 
-/* Call Duration Timer */
 .call-duration {
-  font-size: 2rem;
-  color: white;
-  font-weight: 700;
+  font-size: 3rem;
+  font-weight: 300;
+  color: #fff;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 2px;
-  padding: 1rem 2rem;
-  background: rgba(147, 106, 172, 0.25);
-  border-radius: 25px;
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(147, 106, 172, 0.4);
-  box-shadow: 0 8px 20px rgba(147, 106, 172, 0.3);
-  min-width: 160px;
-  text-align: center;
+  margin: 0;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.05em;
 }
 
-/* Connecting Animation */
+/* ========================================
+   CONNECTING ANIMATION - MATCH CALL MODAL
+   ======================================== */
 .call-connecting {
-  margin: 2rem 0;
+  margin: 1rem 0;
 }
 
 .connecting-dots {
   display: flex;
+  gap: 8px;
   justify-content: center;
-  gap: 0.75rem;
 }
 
 .connecting-dots span {
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #936AAC;
-  animation: bounce 1.4s ease-in-out infinite;
+  background: rgba(255, 255, 255, 0.8);
+  animation: ringing-dot 1.5s infinite ease-in-out;
 }
 
 .connecting-dots span:nth-child(1) { animation-delay: 0s; }
-.connecting-dots span:nth-child(2) { animation-delay: 0.2s; }
-.connecting-dots span:nth-child(3) { animation-delay: 0.4s; }
+.connecting-dots span:nth-child(2) { animation-delay: 0.3s; }
+.connecting-dots span:nth-child(3) { animation-delay: 0.6s; }
 
-@keyframes bounce {
+@keyframes ringing-dot {
   0%, 80%, 100% {
     transform: scale(0.8);
     opacity: 0.5;
@@ -288,14 +288,16 @@
   }
 }
 
-/* Controls Footer */
+/* ========================================
+   CALL CONTROLS FOOTER - MATCH CALL MODAL EXACTLY
+   ======================================== */
 .call-controls-footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2.5rem;
   width: 100%;
-  padding-top: 2.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-top: auto;
 }
 
 .control-btn {
@@ -304,114 +306,103 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  color: rgba(255, 255, 255, 0.8);
-  padding: 0.5rem;
-  border-radius: 20px;
+  transition: transform 0.2s ease;
+  min-width: 70px;
 }
 
-.control-btn:hover:not(:disabled) {
-  transform: translateY(-5px) scale(1.05);
-  color: white;
+.control-btn:active {
+  transform: scale(0.95);
 }
 
-.control-btn:active:not(:disabled) {
-  transform: translateY(-2px) scale(1);
+.control-btn:hover {
+  transform: translateY(-2px);
 }
 
-.control-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
+/* Icon Circle - White Circular Buttons (Match Call Modal) */
 .icon-circle {
-  width: 70px;
-  height: 70px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.75rem;
+  color: #fff;
+  font-size: 1.4rem;
   transition: all 0.3s ease;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.control-btn:hover:not(:disabled) .icon-circle {
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
-  transform: scale(1.1);
+.control-btn:hover .icon-circle {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
 }
 
+/* Active State - White Background, Purple Icon (Match Call Modal) */
 .control-btn.active-state .icon-circle {
-  background: linear-gradient(135deg, #936AAC 0%, #6b4c80 100%);
-  box-shadow: 0 8px 25px rgba(147, 106, 172, 0.6);
-  border-color: rgba(147, 106, 172, 0.4);
+  background: #fff;
+  color: #936AAC;
+  border-color: #fff;
 }
 
+/* End Call Button - Large Red Circle (Match Call Modal) */
 .control-btn.end-call-btn .icon-circle {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  width: 85px;
-  height: 85px;
-  font-size: 2rem;
-  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.5);
-  border: 3px solid rgba(239, 68, 68, 0.3);
-  animation: pulseRed 3s ease-in-out infinite;
+  background: #ef4444 !important;
+  width: 68px;
+  height: 68px;
+  font-size: 1.75rem;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.5);
+  border: none;
 }
 
 .control-btn.end-call-btn:hover .icon-circle {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  transform: scale(1.15);
-  box-shadow: 0 15px 40px rgba(239, 68, 68, 0.7);
+  background: #dc2626 !important;
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.6);
 }
 
-@keyframes pulseRed {
-  0%, 100% {
-    box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: 0 15px 40px rgba(239, 68, 68, 0.7);
-    transform: scale(1.05);
-  }
-}
-
+/* Button Labels - Mandatory Under Icons (Match Call Modal) */
 .btn-label {
-  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.85rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  text-transform: capitalize;
 }
 
-/* Mobile Responsive */
+/* Disabled State */
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-btn:disabled .icon-circle {
+  transform: none;
+}
+
+/* ========================================
+   MOBILE RESPONSIVENESS - MATCH CALL MODAL
+   ======================================== */
 @media (max-width: 480px) {
   .active-call-overlay {
-    padding: 0.5rem;
+    padding: 1rem;
   }
 
   .active-call-modal {
-    width: 100%;
-    padding: 2rem 1.25rem 1.5rem;
+    width: 90%;
+    max-width: 360px;
+    padding: 2rem 1.5rem;
     border-radius: 24px;
-    max-height: 90vh;
-    overflow-y: auto;
   }
 
   .call-status-badge {
     margin-bottom: 1.5rem;
   }
 
-  .status-text {
-    font-size: 0.9rem;
-  }
-
   .user-avatar {
-    width: 110px;
-    height: 110px;
+    width: 120px;
+    height: 120px;
   }
 
   .user-avatar.initials {
@@ -420,85 +411,72 @@
 
   .user-name {
     font-size: 1.5rem;
-    margin-bottom: 0.5rem;
   }
 
   .user-title {
     font-size: 0.95rem;
   }
 
+  .call-duration {
+    font-size: 2.5rem;
+    margin: 0.75rem 0 1rem;
+  }
+
   .call-info-section {
-    margin: 1rem 0;
-    gap: 0.75rem;
+    margin: 1rem 0 1.5rem;
     min-height: 60px;
   }
 
   .call-rate-badge {
-    padding: 0.4rem 1rem;
     font-size: 0.85rem;
-  }
-
-  .call-duration {
-    font-size: 1.5rem;
-    padding: 0.75rem 1.5rem;
-    min-width: 120px;
+    padding: 0.4rem 1rem;
   }
 
   .call-connecting {
-    margin: 1rem 0;
-  }
-
-  .connecting-dots span {
-    width: 10px;
-    height: 10px;
-  }
-
-  .icon-circle {
-    width: 52px;
-    height: 52px;
-    font-size: 1.25rem;
-  }
-
-  .control-btn.end-call-btn .icon-circle {
-    width: 64px;
-    height: 64px;
-    font-size: 1.6rem;
+    margin: 0.75rem 0;
   }
 
   .call-controls-footer {
     gap: 1rem;
-    padding-top: 1.5rem;
+  }
+
+  .icon-circle {
+    width: 50px;
+    height: 50px;
+    font-size: 1.25rem;
+  }
+
+  .control-btn.end-call-btn .icon-circle {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
   }
 
   .btn-label {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
   .audio-indicator {
-    padding: 6px;
+    padding: 5px;
     bottom: -3px;
     right: -3px;
   }
 
   .audio-wave {
     width: 3px;
-    height: 14px;
-  }
-
-  .avatar-pulse {
-    inset: -10px;
+    height: 12px;
   }
 }
 
 /* Extra Small Devices */
 @media (max-width: 360px) {
   .active-call-modal {
-    padding: 1.75rem 1rem 1.25rem;
+    padding: 1.75rem 1.25rem;
   }
 
   .user-avatar {
-    width: 95px;
-    height: 95px;
+    width: 110px;
+    height: 110px;
   }
 
   .user-avatar.initials {
@@ -509,20 +487,14 @@
     font-size: 1.35rem;
   }
 
-  .user-title {
-    font-size: 0.85rem;
-  }
-
   .call-duration {
-    font-size: 1.35rem;
-    padding: 0.6rem 1.25rem;
-    min-width: 100px;
+    font-size: 2.25rem;
   }
 
   .icon-circle {
     width: 48px;
     height: 48px;
-    font-size: 1.1rem;
+    font-size: 1.15rem;
   }
 
   .control-btn.end-call-btn .icon-circle {
@@ -536,7 +508,7 @@
   }
 
   .btn-label {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
   }
 }
 
@@ -544,78 +516,37 @@
 @media (min-width: 481px) and (max-width: 768px) {
   .active-call-modal {
     max-width: 400px;
-    padding: 2.5rem 2rem 2.5rem;
+    padding: 2.5rem 2rem;
   }
 
   .user-avatar {
-    width: 140px;
-    height: 140px;
+    width: 130px;
+    height: 130px;
   }
 
   .user-avatar.initials {
-    font-size: 3rem;
+    font-size: 2.8rem;
   }
 
   .user-name {
-    font-size: 1.85rem;
-  }
-
-  .call-duration {
-    font-size: 1.75rem;
-  }
-
-  .icon-circle {
-    width: 62px;
-    height: 62px;
-    font-size: 1.4rem;
-  }
-
-  .control-btn.end-call-btn .icon-circle {
-    width: 76px;
-    height: 76px;
-    font-size: 1.85rem;
+    font-size: 1.6rem;
   }
 }
 
 /* Large Desktop */
 @media (min-width: 1200px) {
   .active-call-modal {
-    max-width: 500px;
-  }
-
-  .user-avatar {
-    width: 180px;
-    height: 180px;
-  }
-
-  .user-avatar.initials {
-    font-size: 4rem;
-  }
-
-  .user-name {
-    font-size: 2.5rem;
-  }
-
-  .icon-circle {
-    width: 76px;
-    height: 76px;
-    font-size: 1.9rem;
-  }
-
-  .control-btn.end-call-btn .icon-circle {
-    width: 90px;
-    height: 90px;
-    font-size: 2.1rem;
+    max-width: 450px;
   }
 }
 
-/* Touch device optimizations */
+/* Touch Device Optimizations */
 @media (hover: none) and (pointer: coarse) {
-  .control-btn:hover:not(:disabled) {
+  .control-btn:hover {
     transform: none;
   }
 
-  .control-btn:active:not(:disabled) {
+  .control-btn:active {
     transform: scale(0.95);
   }
 
@@ -630,16 +561,17 @@
   }
 }
 
-/* Landscape orientation on mobile */
+/* Landscape Orientation on Mobile */
 @media (max-width: 768px) and (orientation: landscape) {
   .active-call-modal {
-    max-height: 95vh;
-    padding: 1.5rem 1.5rem 1rem;
+    max-height: 90vh;
+    padding: 1.5rem 2rem 1.5rem;
   }
 
   .call-user-section {
     flex-direction: row;
     gap: 1.5rem;
+    margin-bottom: 1.5rem;
   }
 
   .user-avatar-wrapper {
@@ -661,7 +593,7 @@
   }
 
   .user-title {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
   }
 
   .call-status-badge {
@@ -669,13 +601,12 @@
   }
 
   .call-info-section {
-    margin: 1rem 0;
-    gap: 0.5rem;
+    margin: 1rem 0 1.5rem;
+    gap: 0.75rem;
   }
 
   .call-duration {
-    font-size: 1.35rem;
-    padding: 0.5rem 1rem;
+    font-size: 2.25rem;
   }
 
   .icon-circle {
@@ -692,13 +623,22 @@
 
   .call-controls-footer {
     gap: 1.5rem;
-    padding-top: 1.5rem;
   }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .active-call-modal {
-    background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
-  }
+/* ========================================
+   ACCESSIBILITY & POLISH - MATCH CALL MODAL
+   ======================================== */
+.control-btn:focus {
+  outline: none;
+}
+
+.control-btn:focus-visible .icon-circle {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+/* Hidden Audio Element */
+audio {
+  display: none;
 }
