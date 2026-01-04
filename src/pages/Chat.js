@@ -221,7 +221,8 @@ const Chat = () => {
       content: messageText.trim(),
       sender: currentUserId,
       createdAt: new Date().toISOString(),
-      status: 'sending'
+      status: 'sending',
+      isOptimistic: true
     };
 
     setMessages(prev => [...prev, tempMessage]);
@@ -479,8 +480,9 @@ const Chat = () => {
                 ) : (
                   messages.map((msg, index) => {
                     // Convert both to string for comparison to avoid type mismatch
-                    const isOwn = String(msg.sender) === String(currentUserId);
-                    const prevMsg = index > 0 ? messages[index -1] : null;
+                    // CRITICAL: Always use msg.sender for comparison
+                    const isOwn = String(msg.sender?._id || msg.sender) === String(currentUserId);
+                    const prevMsg = index > 0 ? messages[index - 1] : null;
                     const showDateSeparator = shouldShowDateSeparator(msg, prevMsg);
                     const otherUser = getOtherParticipant(selectedChat);
 
@@ -498,18 +500,7 @@ const Chat = () => {
                                 <img src={otherUser.avatar} alt="" />
                               ) : (
                                 <div className="avatar-placeholder-small">
-                                  {otherUser?.name?.charAt(0)}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {isOwn && (
-                            <div className="message-avatar">
-                              {user?.avatar ? (
-                                <img src={user.avatar} alt="" />
-                              ) : (
-                                <div className="avatar-placeholder-small">
-                                  {user?.name?.charAt(0)}
+                                  {otherUser?.name?.charAt(0)?.toUpperCase()}
                                 </div>
                               )}
                             </div>
@@ -531,6 +522,17 @@ const Chat = () => {
                               </div>
                             </div>
                           </div>
+                          {isOwn && (
+                            <div className="message-avatar">
+                              {user?.avatar ? (
+                                <img src={user.avatar} alt="" />
+                              ) : (
+                                <div className="avatar-placeholder-small">
+                                  {user?.name?.charAt(0)?.toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
