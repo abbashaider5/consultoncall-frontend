@@ -42,6 +42,7 @@ const ActiveCallModal = () => {
   const hasSetupPeerConnectionRef = useRef(false);
   const iceCandidateQueue = useRef([]);
   const socketConnectedRef = useRef(false);
+  const handleEndCallRef = useRef(null);
 
   // Reset all state and refs
   const resetAll = useCallback(() => {
@@ -97,6 +98,17 @@ const ActiveCallModal = () => {
   }, [socket?.connected]);
 
   // Flush queued ICE candidates when socket reconnects
+  useEffect(() => {
+    if (socket?.connected && iceCandidateQueue.current.length > 0) {
+      console.log('🔄 Socket reconnected - flushing', iceCandidateQueue.current.length, 'queued ICE candidates');
+      iceCandidateQueue.current.forEach(candidate => {
+        sendIceCandidate(candidate);
+      });
+      iceCandidateQueue.current = [];
+    }
+  }, [socket?.connected, sendIceCandidate]);
+
+  // Monitor socket connection for ICE candidate handling
   useEffect(() => {
     if (socketConnectedRef.current && !socket?.connected) {
       // Socket just disconnected
@@ -293,10 +305,20 @@ const ActiveCallModal = () => {
       resetAll();
     }
   }, [user, activeCall, duration, callStatus, endCall, updateTokens, resetAll]);
+  
+  // Store handleEndCall in ref for access in peer connection handlers
+  useEffect(() => {
+    handleEndCallRef.current = handleEndCall;
+  }, [handleEndCall]);
 
   const setupPeerConnection = useCallback(async () => {
-    if (!activeCall || peerConnectionRef.current || hasSetupPeerConnectionRef.current) {
-      console.warn('⚠️ Skipping WebRTC setup - activeCall:', !!activeCall, 'pc exists:', !!peerConnectionRef.current, 'hasSetup:', hasSetupPeerConnectionRef.current);
+    if (!activeCall) {
+      console.warn('⚠️ Skipping WebRTC setup - no active call');
+      return;
+    }
+    
+    if (peerConnectionRef.current) {
+      console.warn('⚠️ Peer connection already exists, skipping setup');
       return;
     }
 
@@ -314,6 +336,7 @@ const ActiveCallModal = () => {
 
     const pc = new RTCPeerConnection(config);
     peerConnectionRef.current = pc;
+    hasSetupPeerConnectionRef.current = true;
     
     console.log('✅ RTCPeerConnection created with config:', JSON.stringify(config, null, 2));
 
@@ -405,13 +428,15 @@ const ActiveCallModal = () => {
           port: event.candidate.port
         });
         
+        const candidateData = { callId: activeCall.callId, candidate: event.candidate };
+        
         // Queue ICE candidate if socket is disconnected
         if (socketConnectedRef.current && socket?.connected) {
           console.log('📤 Sending ICE candidate immediately (socket connected)');
-          sendIceCandidate({ callId: activeCall.callId, candidate: event.candidate });
+          sendIceCandidate(candidateData);
         } else {
-          console.log('📤 Queueing ICE candidate (socket disconnected)');
-          iceCandidateQueue.current.push(event.candidate);
+          console.log('📦 Queueing ICE candidate (socket disconnected)');
+          iceCandidateQueue.current.push(candidateData);
         }
       } else {
         console.log('🧊 ICE gathering complete');
@@ -450,7 +475,7 @@ const ActiveCallModal = () => {
       } else if (pc.iceConnectionState === 'failed') {
         console.error('❌ ICE connection failed - ending call');
         toast.error('Connection failed. Please try again.');
-        handleEndCall();
+        if (handleEndCallRef.current) handleEndCallRef.current();
       } else if (pc.iceConnectionState === 'disconnected') {
         console.warn('⚠️ ICE disconnected - waiting for recovery...');
         // Wait 3 seconds for recovery
@@ -458,12 +483,12 @@ const ActiveCallModal = () => {
           if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
             console.error('❌ ICE did not recover - ending call');
             toast.error('Connection lost');
-            handleEndCall();
+            if (handleEndCallRef.current) handleEndCallRef.current();
           }
         }, 3000);
       } else if (pc.iceConnectionState === 'closed') {
         console.warn('⚠️ ICE connection closed - ending call');
-        handleEndCall();
+        if (handleEndCallRef.current) handleEndCallRef.current();
       }
     };
 
@@ -477,19 +502,19 @@ const ActiveCallModal = () => {
       } else if (pc.connectionState === 'failed') {
         console.error('❌ WebRTC connection failed - ending call');
         toast.error('Connection failed. Please try again.');
-        handleEndCall();
+        if (handleEndCallRef.current) handleEndCallRef.current();
       } else if (pc.connectionState === 'disconnected') {
         console.warn('⚠️ WebRTC disconnected - waiting for recovery...');
         // Wait 5 seconds for recovery, then end if still disconnected
         setTimeout(() => {
           if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
             console.warn('⚠️ WebRTC did not recover - ending call');
-            handleEndCall();
+            if (handleEndCallRef.current) handleEndCallRef.current();
           }
         }, 5000);
       } else if (pc.connectionState === 'closed') {
         console.warn('⚠️ WebRTC connection closed - ending call');
-        handleEndCall();
+        if (handleEndCallRef.current) handleEndCallRef.current();
       }
     };
 
@@ -517,7 +542,7 @@ const ActiveCallModal = () => {
     } else {
       console.log('👨‍⚕️ Expert is callee - waiting for WebRTC offer...');
     }
-  }, [activeCall, user?.role, sendOffer, sendIceCandidate, markCallConnected, handleEndCall]);
+  }, [activeCall, user?.role, sendOffer, sendIceCandidate, markCallConnected]);
 
   const handleWebRTCOffer = useCallback(async (data) => {
     if (!activeCall || data.callId !== activeCall.callId) {
@@ -742,14 +767,8 @@ const ActiveCallModal = () => {
       console.log('🔍 Active call details:', JSON.stringify(activeCall, null, 2));
       setCallStatus('connecting');
       
-      // Mark that we're setting up peer connection (prevent duplicates)
-      hasSetupPeerConnectionRef.current = true;
-      
-      // Add small delay to ensure socket signaling is ready
-      setTimeout(() => {
-        console.log('🚀 Starting WebRTC setup after delay...');
-        setupPeerConnection();
-      }, 100);
+      // Call setupPeerConnection which will set hasSetupPeerConnectionRef when PC is created
+      setupPeerConnection();
       
       // SAFETY: Set 30-second timeout for connection
       connectionTimeoutRef.current = setTimeout(() => {
@@ -770,7 +789,7 @@ const ActiveCallModal = () => {
         connectionTimeoutRef.current = null;
       }
     };
-  }, [activeCall, activeCall?.status, setupPeerConnection, callStatus, handleEndCall, user?.role]);
+  }, [activeCall, activeCall?.status]);
 
   // Handle WebRTC signaling events
   useEffect(() => {
@@ -882,6 +901,11 @@ const ActiveCallModal = () => {
         </div>
       </div>
     );
+  }
+
+  // Don't render if no active call
+  if (!activeCall) {
+    return null;
   }
 
   return (
