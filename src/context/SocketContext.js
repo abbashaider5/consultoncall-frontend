@@ -23,6 +23,7 @@ export const SocketProvider = ({ children }) => {
   const [connectionError, setConnectionError] = useState(null);
   const [onlineExperts, setOnlineExperts] = useState(new Set());
   const [busyExperts, setBusyExperts] = useState(new Set());
+  const [expertStatuses, setExpertStatuses] = useState(new Map());
   const [incomingCall, setIncomingCall] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
   const [newMessage, setNewMessage] = useState(null);
@@ -173,10 +174,18 @@ export const SocketProvider = ({ children }) => {
         }
         return newSet;
       });
+
+      // Update expert statuses map
+      setExpertStatuses(prev => {
+        const newMap = new Map(prev);
+        const currentStatus = newMap.get(expertId) || { isOnline: false, isBusy: false, lastUpdated: Date.now() };
+        newMap.set(expertId, { ...currentStatus, isOnline, lastUpdated: Date.now() });
+        return newMap;
+      });
     });
 
     // Expert busy status changes
-    newSocket.on('expert_busy_changed', ({ expertId, isBusy }) => {
+    newSocket.on('expert_busy_changed', ({ expertId, isBusy, callId }) => {
       setBusyExperts(prev => {
         const newSet = new Set(prev);
         if (isBusy) {
@@ -185,6 +194,14 @@ export const SocketProvider = ({ children }) => {
           newSet.delete(expertId);
         }
         return newSet;
+      });
+
+      // Update expert statuses map
+      setExpertStatuses(prev => {
+        const newMap = new Map(prev);
+        const currentStatus = newMap.get(expertId) || { isOnline: false, isBusy: false, lastUpdated: Date.now() };
+        newMap.set(expertId, { ...currentStatus, isBusy, currentCallId: callId, lastUpdated: Date.now() });
+        return newMap;
       });
     });
 
@@ -530,16 +547,49 @@ export const SocketProvider = ({ children }) => {
     return onlineExperts.has(expertId);
   }, [onlineExperts]);
 
+  const getExpertStatusDetail = useCallback((expertId) => {
+    return expertStatuses.get(expertId) || { isOnline: false, isBusy: false, lastUpdated: 0 };
+  }, [expertStatuses]);
+
   // Get expert status (Online/Offline/Busy) with color
   const getExpertStatus = useCallback((expertId) => {
-    if (busyExperts.has(expertId)) {
-      return { text: 'Busy', color: '#fd7e14' }; // Orange
+    const statusDetail = expertStatuses.get(expertId);
+    
+    // Priority: Busy > Online > Offline
+    if (statusDetail?.isBusy) {
+      return { 
+        text: 'Busy', 
+        color: '#fd7e14', // Orange
+        status: 'busy',
+        canCall: false,
+        canChat: true
+      };
     }
-    if (onlineExperts.has(expertId)) {
-      return { text: 'Online', color: '#28a745' }; // Green
+    
+    if (statusDetail?.isOnline) {
+      return { 
+        text: 'Online', 
+        color: '#28a745', // Green
+        status: 'online',
+        canCall: true,
+        canChat: true
+      };
     }
-    return { text: 'Offline', color: '#6c757d' }; // Gray
-  }, [onlineExperts, busyExperts]);
+    
+    return { 
+      text: 'Offline', 
+      color: '#6c757d', // Gray
+      status: 'offline',
+      canCall: false,
+      canChat: false
+    };
+  }, [expertStatuses, onlineExperts, busyExperts]);
+
+  // Check if expert can receive calls (online and not busy)
+  const canExpertReceiveCall = useCallback((expertId) => {
+    const statusDetail = expertStatuses.get(expertId);
+    return statusDetail?.isOnline && !statusDetail?.isBusy;
+  }, [expertStatuses]);
 
   const refreshBusyExperts = useCallback(() => {
     // This could optionally emit a request to server to get latest busy list
@@ -552,6 +602,7 @@ export const SocketProvider = ({ children }) => {
     connectionError,
     onlineExperts,
     busyExperts,
+    expertStatuses,
     incomingCall,
     activeCall,
     newMessage,
@@ -559,6 +610,8 @@ export const SocketProvider = ({ children }) => {
     isExpertOnline,
     isExpertBusy,
     getExpertStatus,
+    getExpertStatusDetail,
+    canExpertReceiveCall,
     refreshBusyExperts,
     initiateCall,
     acceptCall,
