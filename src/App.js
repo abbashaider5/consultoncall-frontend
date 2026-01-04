@@ -1,7 +1,6 @@
 import { Route, Routes, useLocation } from 'react-router-dom';
 import './App.css';
-import ActiveCallModal from './components/ActiveCallModal';
-import CallPopupModal from './components/CallPopupModal';
+import AgoraAudioCall from './components/AgoraAudioCall';
 import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
 import About from './pages/About';
@@ -33,10 +32,8 @@ function App() {
   return (
     <div className="app">
       {showNavbar && <Navbar />}
-      {/* Global Call Popup Modal */}
-      <CallPopupModal />
-      {/* Global Active Call (WebRTC) Modal */}
-      <ActiveCallModal />
+      {/* Global Agora Audio Call Modal - renders only when active call exists */}
+      <AgoraAudioCall />
       <main className={`main-content ${!showNavbar ? 'no-navbar' : ''}`}>
         <Routes>
           <Route path="/" element={<Home />} />

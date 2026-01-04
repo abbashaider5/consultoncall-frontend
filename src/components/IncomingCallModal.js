@@ -109,7 +109,7 @@ const IncomingCallModal = () => {
             )}
           </div>
           <h2 className="caller-name-b">{callerInfo?.name || 'Incoming Call'}</h2>
-          <p className="call-status-b">Incoming Video Call...</p>
+          <p className="call-status-b">Incoming Audio Call...</p>
         </div>
 
         {/* Action Buttons: 2 Large Circles */}
@@ -135,4 +135,3 @@ const IncomingCallModal = () => {
 };
 
 export default IncomingCallModal;
-

@@ -5,8 +5,8 @@ import * as FiIcons from 'react-icons/fi';
 import { FiClock, FiMessageSquare, FiPhone, FiUsers } from 'react-icons/fi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import AgoraChatWindow from '../components/AgoraChatWindow';
 import CallModal from '../components/CallModal';
-import ChatWindow from '../components/ChatWindow';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -617,7 +617,7 @@ const ExpertProfile = () => {
         )}
 
         {showChat && (
-          <ChatWindow
+          <AgoraChatWindow
             isOpen={showChat}
             onClose={() => setShowChat(false)}
             recipientId={expert.user?._id || expert._id || expert.id}

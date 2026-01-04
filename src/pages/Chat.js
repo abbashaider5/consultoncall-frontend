@@ -1,3 +1,4 @@
+import { AgoraChat } from 'agora-chat';
 import { useEffect, useRef, useState } from 'react';
 import { FiArrowLeft, FiSearch, FiSend, FiSlash, FiTrash2 } from 'react-icons/fi';
 import Skeleton from 'react-loading-skeleton';
@@ -7,11 +8,10 @@ import { toast } from 'react-toastify';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
 import './Chat.css';
 
-// Message sound
-let messageSound = null;
+// Initialize Agora Chat SDK
+let chatClient = null;
 
 const Chat = () => {
   const [chats, setChats] = useState([]);
@@ -25,25 +25,96 @@ const Chat = () => {
   const [isBlockedByOther, setIsBlockedByOther] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [chatConnection, setChatConnection] = useState('disconnected');
   const messagesEndRef = useRef(null);
-  const { newMessage, sendChatMessage, clearUnreadCount, unreadCounts, getExpertStatus } = useSocket();
-  const { isExpert, user } = useAuth();
+  const { user, expert } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const currentUserId = localStorage.getItem('userId');
 
-  // Initialize message sound
+  // Initialize Agora Chat
   useEffect(() => {
-    if (!messageSound) {
-      messageSound = new Audio('/assets/new-message-tone.mp3');
-      messageSound.volume = 0.3;
-    }
-  }, []);
+    const initAgoraChat = async () => {
+      try {
+        if (!user?._id) return;
 
-  const playMessageSound = () => {
-    if (messageSound) {
-      messageSound.play().catch(err => console.log('Sound play error:', err));
+        // Get Agora Chat token from backend
+        const { data } = await axios.get('/api/agora/chat-token');
+        
+        // Initialize Agora Chat SDK
+        chatClient = new AgoraChat.connection({
+          appKey: process.env.REACT_APP_AGORA_CHAT_APP_KEY,
+        });
+
+        // Listen for connection events
+        chatClient.addEventHandler('connection', {
+          onConnected: () => {
+            console.log('✅ Agora Chat connected');
+            setChatConnection('connected');
+          },
+          onDisconnected: () => {
+            console.log('🔌 Agora Chat disconnected');
+            setChatConnection('disconnected');
+          },
+        });
+
+        // Listen for new messages
+        chatClient.addEventHandler('message', {
+          onTextMessage: (message) => {
+            console.log('📨 New message received:', message);
+            handleIncomingMessage(message);
+          },
+        });
+
+        // Login to Agora Chat
+        await chatClient.open({
+          user: user._id,
+          accessToken: data.token,
+        });
+
+        console.log('✅ Agora Chat initialized and connected');
+      } catch (error) {
+        console.error('❌ Agora Chat initialization error:', error);
+        setChatConnection('error');
+      }
+    };
+
+    initAgoraChat();
+
+    return () => {
+      if (chatClient) {
+        chatClient.removeEventHandler('connection');
+        chatClient.removeEventHandler('message');
+        chatClient.close();
+      }
+    };
+  }, [user?._id]);
+
+  const handleIncomingMessage = (message) => {
+    const senderId = message.from;
+    const receiverId = message.to;
+    
+    // Find which chat this message belongs to
+    const chatId = [senderId, receiverId].sort().join('_');
+    
+    if (selectedChat && chatId === selectedChat.agoraChatId) {
+      // Add message to current chat
+      const newMessage = {
+        _id: message.id,
+        content: message.msg,
+        sender: message.from,
+        createdAt: new Date(message.time).toISOString(),
+        status: 'received'
+      };
+      setMessages(prev => [...prev, newMessage]);
+      scrollToBottom();
+      
+      // Mark as read via backend
+      axios.put(`/api/chats/${selectedChat._id}/read`).catch(err => console.log('Mark read error:', err));
     }
+    
+    // Reload chats to update last message
+    loadChats();
   };
 
   // Filter chats by search
@@ -69,56 +140,27 @@ const Chat = () => {
 
       if (chatWithExpert && !selectedChat) {
         setSelectedChat(chatWithExpert);
-        // Clear the URL parameter after selecting
+        // Clear URL parameter after selecting
         navigate('/chat', { replace: true });
       }
     }
   }, [chats, searchParams, currentUserId, selectedChat, navigate]);
 
-  // Handle typing indicator
-  useEffect(() => {
-    const handleTyping = (e) => {
-      if (selectedChat && e.detail?.chatId === selectedChat._id) {
-        setIsTyping(e.detail.isTyping);
-      }
-    };
-
-    window.addEventListener('chat_typing', handleTyping);
-    return () => window.removeEventListener('chat_typing', handleTyping);
-  }, [selectedChat]);
-
-  // Handle new messages
-  useEffect(() => {
-    if (!newMessage || !selectedChat) return;
-    if (newMessage.chatId && newMessage.chatId === selectedChat._id && newMessage.message) {
-      // Play sound for incoming messages
-      const isOwnMessage = String(newMessage.message.sender) === String(currentUserId);
-      if (!isOwnMessage) {
-        playMessageSound();
-      }
-      
-      setMessages(prev => [...prev, newMessage.message]);
-      scrollToBottom();
-      clearUnreadCount?.(selectedChat._id);
-    }
-  }, [newMessage, selectedChat, clearUnreadCount, currentUserId]);
-
-  // Load messages + mark read when chat is selected
+  // Load messages when chat is selected
   useEffect(() => {
     if (!selectedChat) return;
 
     loadMessages(selectedChat._id);
 
-    // Mark read in backend (source of truth)
+    // Mark read in backend
     (async () => {
       try {
         await axios.put(`/api/chats/${selectedChat._id}/read`);
-        clearUnreadCount?.(selectedChat._id);
       } catch (e) {
-        // Non-fatal
+        console.log('Mark read error:', e);
       }
     })();
-  }, [selectedChat, clearUnreadCount]);
+  }, [selectedChat]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -136,14 +178,10 @@ const Chat = () => {
         setChats(data);
       } else {
         setChats([]);
-        console.warn('Unexpected chats data format:', data);
       }
     } catch (error) {
       console.error('Failed to load chats:', error);
       setChats([]);
-      if (error.response?.status !== 404) {
-        toast.error(error.response?.data?.message || 'Failed to load chats');
-      }
     } finally {
       setLoading(false);
     }
@@ -157,7 +195,6 @@ const Chat = () => {
     } catch (error) {
       console.error('Failed to load messages:', error);
       setMessages([]);
-      toast.error(error.response?.data?.message || 'Failed to load messages');
     } finally {
       setLoadingMessages(false);
     }
@@ -193,14 +230,10 @@ const Chat = () => {
       if (!other) return;
 
       try {
-        // Check if current user has blocked the other user
         const { data } = await axios.get('/api/users/blocked');
         const blockedIds = data.map(u => u._id);
         const hasBlocked = blockedIds.includes(other._id);
         setIsBlocked(hasBlocked);
-
-        // Check if other user has blocked current user by trying to check their profile
-        // We'll detect this when trying to send a message
         setIsBlockedByOther(false);
       } catch {
         setIsBlocked(false);
@@ -213,7 +246,10 @@ const Chat = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
 
-    if (!messageText.trim() || !selectedChat) return;
+    if (!messageText.trim() || !selectedChat || !chatClient) return;
+
+    const otherUser = getOtherParticipant(selectedChat);
+    if (!otherUser) return;
 
     // Optimistic UI update
     const tempMessage = {
@@ -230,6 +266,17 @@ const Chat = () => {
     scrollToBottom();
 
     try {
+      // Send via Agora Chat
+      const msg = AgoraChat.message.create({
+        type: 'txt',
+        msg: messageText.trim(),
+        to: otherUser._id,
+        chatType: 'singleChat',
+      });
+
+      await chatClient.send(msg);
+      
+      // Also save to backend for persistence and history
       const { data } = await axios.post(`/api/chats/${selectedChat._id}/messages`, {
         content: messageText.trim()
       });
@@ -239,23 +286,18 @@ const Chat = () => {
         msg._id === tempMessage._id ? { ...data, status: 'sent' } : msg
       ));
 
-      // Send via socket for real-time delivery
-      const other = getOtherParticipant(selectedChat);
-      if (sendChatMessage && other?._id) {
-        await sendChatMessage(selectedChat._id, other._id, { content: data.content });
-      }
+      // Reload chats to update last message
+      loadChats();
 
     } catch (error) {
       console.error('Send message error:', error);
       
-      // Check if blocked by other user
-      const errorMessage = error.response?.data?.message;
-      if (errorMessage?.includes('blocked by this user') || errorMessage?.includes('cannot send messages')) {
+      const errorMessage = error.response?.data?.message || error.message;
+      if (errorMessage?.includes('blocked')) {
         setIsBlockedByOther(true);
-        toast.error(errorMessage);
-      } else {
-        toast.error(errorMessage || 'Failed to send message');
       }
+      
+      toast.error(errorMessage || 'Failed to send message');
       
       setMessages(prev => prev.map(msg => 
         msg._id === tempMessage._id ? { ...msg, status: 'failed' } : msg
@@ -332,7 +374,14 @@ const Chat = () => {
       {/* Chat List Sidebar */}
       <div className={`chat-list ${selectedChat ? 'hidden-mobile' : ''}`}>
         <div className="chat-list-header">
-          <h2>Messages</h2>
+          <div className="header-top">
+            <h2>Messages</h2>
+            {chatConnection === 'connected' && (
+              <div className="connection-status" title="Agora Chat Connected">
+                <div className="status-dot connected"></div>
+              </div>
+            )}
+          </div>
         </div>
         <div className="chat-search">
           <FiSearch className="search-icon" />
@@ -346,7 +395,6 @@ const Chat = () => {
         </div>
         <div className="chat-list-items">
           {loading ? (
-            /* Skeleton Loading for Chat List */
             <>
               {Array(5).fill(0).map((_, i) => (
                 <div className="chat-item" key={i}>
@@ -368,14 +416,13 @@ const Chat = () => {
               <div className="no-chats-icon">💬</div>
               <h3>No conversations yet</h3>
               <p>Start chatting with experts to get personalized advice</p>
-              <button onClick={() => navigate('/experts')} className="btn-primary">
+              <button onClick={() => navigate('/')} className="btn-primary">
                 Find an Expert
               </button>
             </div>
           ) : (
             filteredChats.map(chat => {
               const otherUser = getOtherParticipant(chat);
-              const unread = unreadCounts[chat._id] || 0;
 
               return (
                 <div
@@ -388,22 +435,21 @@ const Chat = () => {
                     alt={otherUser?.name}
                     className="chat-avatar"
                   />
-              <div className="chat-item-content">
-                <div className="chat-item-header">
-                  <span className="chat-name">
-                    {otherUser?.name}
-                    {otherUser?.role === 'expert' && otherUser?.isVerified && (
-                      <VerifiedBadge size="small" />
-                    )}
-                  </span>
-                  <span className="chat-time">{formatTime(chat.lastMessageTime)}</span>
+                  <div className="chat-item-content">
+                    <div className="chat-item-header">
+                      <span className="chat-name">
+                        {otherUser?.name}
+                        {otherUser?.role === 'expert' && otherUser?.isVerified && (
+                          <VerifiedBadge size="small" />
+                        )}
+                      </span>
+                      <span className="chat-time">{formatTime(chat.lastMessageTime)}</span>
+                    </div>
+                    <div className="chat-item-footer">
+                      <p className="chat-last-message">{chat.lastMessage || 'No messages yet'}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="chat-item-footer">
-                  <p className="chat-last-message">{chat.lastMessage || 'No messages yet'}</p>
-                  {unread > 0 && <span className="unread-badge">{unread}</span>}
-                </div>
-              </div>
-            </div>
               );
             })
           )}
@@ -426,7 +472,6 @@ const Chat = () => {
                     alt={getOtherParticipant(selectedChat)?.name}
                     className="chat-header-avatar"
                   />
-                  <div className={`status-indicator status-${getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.status || 'offline'}`}></div>
                 </div>
                 <div className="chat-header-info">
                   <div className="name-row">
@@ -436,9 +481,7 @@ const Chat = () => {
                     )}
                   </div>
                   <span className="status-label">
-                    {isTyping ? 'Typing...' : 
-                     (getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.text || 'Offline')
-                    }
+                    {isTyping ? 'Typing...' : 'Online'}
                   </span>
                 </div>
               </div>
@@ -461,83 +504,80 @@ const Chat = () => {
               </div>
             </div>
 
-              {/* Messages Area */}
-              <div className="messages-container">
-                {loadingMessages ? (
-                  /* Skeleton Loading for Messages */
-                  <div className="messages-skeleton">
-                    <div className="message other"><div className="message-bubble"><Skeleton width={150} /></div></div>
-                    <div className="message own"><div className="message-bubble"><Skeleton width={200} /></div></div>
-                    <div className="message other"><div className="message-bubble"><Skeleton width={120} /><Skeleton width={80} /></div></div>
-                    <div className="message own"><div className="message-bubble"><Skeleton width={180} /></div></div>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="no-messages">
-                    <div className="empty-icon">💬</div>
-                    <h3>No messages yet</h3>
-                    <p>Start the conversation with {getOtherParticipant(selectedChat)?.name}</p>
-                  </div>
-                ) : (
-                  messages.map((msg, index) => {
-                    // Convert both to string for comparison to avoid type mismatch
-                    // CRITICAL: Always use msg.sender for comparison
-                    const isOwn = String(msg.sender?._id || msg.sender) === String(currentUserId);
-                    const prevMsg = index > 0 ? messages[index - 1] : null;
-                    const showDateSeparator = shouldShowDateSeparator(msg, prevMsg);
-                    const otherUser = getOtherParticipant(selectedChat);
+            {/* Messages Area */}
+            <div className="messages-container">
+              {loadingMessages ? (
+                <div className="messages-skeleton">
+                  <div className="message other"><div className="message-bubble"><Skeleton width={150} /></div></div>
+                  <div className="message own"><div className="message-bubble"><Skeleton width={200} /></div></div>
+                  <div className="message other"><div className="message-bubble"><Skeleton width={120} /><Skeleton width={80} /></div></div>
+                  <div className="message own"><div className="message-bubble"><Skeleton width={180} /></div></div>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="no-messages">
+                  <div className="empty-icon">💬</div>
+                  <h3>No messages yet</h3>
+                  <p>Start conversation with {getOtherParticipant(selectedChat)?.name}</p>
+                </div>
+              ) : (
+                messages.map((msg, index) => {
+                  const isOwn = String(msg.sender?._id || msg.sender) === String(currentUserId);
+                  const prevMsg = index > 0 ? messages[index - 1] : null;
+                  const showDateSeparator = shouldShowDateSeparator(msg, prevMsg);
+                  const otherUser = getOtherParticipant(selectedChat);
 
-                    return (
-                      <div key={msg._id || index}>
-                        {showDateSeparator && (
-                          <div className="date-separator">
-                            <span>{formatDateSeparator(msg.createdAt)}</span>
+                  return (
+                    <div key={msg._id || index}>
+                      {showDateSeparator && (
+                        <div className="date-separator">
+                          <span>{formatDateSeparator(msg.createdAt)}</span>
+                        </div>
+                      )}
+                      <div className={`message ${isOwn ? 'own' : 'other'}`}>
+                        {!isOwn && (
+                          <div className="message-avatar">
+                            {otherUser?.avatar ? (
+                              <img src={otherUser.avatar} alt="" />
+                            ) : (
+                              <div className="avatar-placeholder-small">
+                                {otherUser?.name?.charAt(0)?.toUpperCase()}
+                              </div>
+                            )}
                           </div>
                         )}
-                        <div className={`message ${isOwn ? 'own' : 'other'}`}>
+                        <div className="message-content">
                           {!isOwn && (
-                            <div className="message-avatar">
-                              {otherUser?.avatar ? (
-                                <img src={otherUser.avatar} alt="" />
-                              ) : (
-                                <div className="avatar-placeholder-small">
-                                  {otherUser?.name?.charAt(0)?.toUpperCase()}
-                                </div>
-                              )}
-                            </div>
+                            <span className="sender-name">{otherUser?.name}</span>
                           )}
-                          <div className="message-content">
-                            {!isOwn && (
-                              <span className="sender-name">{otherUser?.name}</span>
-                            )}
-                            <div className={`message-bubble ${isOwn ? 'sent' : 'received'}`}>
-                              <p>{msg.content}</p>
-                              <div className="message-meta">
-                                <span className="message-time">{formatTime(msg.createdAt)}</span>
-                                {isOwn && (
-                                  <span className="message-status">
-                                    {msg.status === 'sending' ? '🕒' : 
-                                     msg.status === 'failed' ? '⚠️' : '✓✓'}
-                                  </span>
-                                )}
-                              </div>
+                          <div className={`message-bubble ${isOwn ? 'sent' : 'received'}`}>
+                            <p>{msg.content}</p>
+                            <div className="message-meta">
+                              <span className="message-time">{formatTime(msg.createdAt)}</span>
+                              {isOwn && (
+                                <span className="message-status">
+                                  {msg.status === 'sending' ? '🕒' : 
+                                   msg.status === 'failed' ? '⚠️' : '✓✓'}
+                                </span>
+                              )}
                             </div>
                           </div>
-                          {isOwn && (
-                            <div className="message-avatar">
-                              {user?.avatar ? (
-                                <img src={user.avatar} alt="" />
-                              ) : (
-                                <div className="avatar-placeholder-small">
-                                  {user?.name?.charAt(0)?.toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                          )}
                         </div>
+                        {isOwn && (
+                          <div className="message-avatar">
+                            {user?.avatar ? (
+                              <img src={user.avatar} alt="" />
+                            ) : (
+                              <div className="avatar-placeholder-small">
+                                {user?.name?.charAt(0)?.toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    );
-                  })
-                )}
+                    </div>
+                  );
+                })
+              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -567,11 +607,11 @@ const Chat = () => {
                   type="text"
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
-                  placeholder="Type a message..."
+                  placeholder={chatConnection !== 'connected' ? 'Connecting...' : 'Type a message...'}
                   className="message-input"
-                  disabled={sending}
+                  disabled={sending || chatConnection !== 'connected'}
                 />
-                <button type="submit" className="send-btn" disabled={sending || !messageText.trim()}>
+                <button type="submit" className="send-btn" disabled={sending || !messageText.trim() || chatConnection !== 'connected'}>
                   <FiSend />
                 </button>
               </form>

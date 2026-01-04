@@ -5,14 +5,14 @@
 
 /* Color System */
 :root {
-    --primary-color: #0084ff;
-    --primary-light: #e7f3ff;
+    --primary-color: #936AAC;
+    --primary-light: #f3e5f7;
     --bg-color: #ffffff;
     --bg-secondary: #f0f2f5;
     --text-primary: #050505;
     --text-secondary: #65676b;
     --text-tertiary: #bcc0c4;
-    --message-sent-bg: #0084ff;
+    --message-sent-bg: #936AAC;
     --message-sent-text: #ffffff;
     --message-received-bg: #f0f2f5;
     --message-received-text: #050505;
@@ -548,7 +548,7 @@
 }
 
 .send-btn:hover:not(:disabled) {
-    background: #0073e6;
+    background: #7a5a91;
     transform: scale(1.05);
 }
 

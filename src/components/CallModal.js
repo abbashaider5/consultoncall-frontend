@@ -9,7 +9,7 @@ import VerifiedBadge from './VerifiedBadge';
 
 const CallModal = ({ expert, onClose }) => {
   const { user } = useAuth();
-  const { initiateCall, isConnected, connectionError, canExpertReceiveCall, isExpertOnline, isExpertBusy } = useSocket();
+  const { initiateCall } = useSocket();
   const [loading, setLoading] = useState(false);
 
   const handleStartCall = async () => {
@@ -17,41 +17,7 @@ const CallModal = ({ expert, onClose }) => {
     
     try {
       setLoading(true);
-      console.log('🚀 Starting call flow...', { expert, user });
-
-      // Check if user's socket is connected
-      if (!isConnected) {
-        console.error('❌ Socket not connected:', connectionError);
-        toast.error('Connection lost. Please refresh the page.');
-        setLoading(false);
-        return;
-      }
-
-      // Check expert's real-time socket status BEFORE initiating call
-      const expertCanReceive = canExpertReceiveCall(expert._id);
-      const expertIsOnline = isExpertOnline(expert._id);
-      const expertIsBusy = isExpertBusy(expert._id);
-
-      console.log('🔍 Expert socket status check:', {
-        expertId: expert._id,
-        canReceive: expertCanReceive,
-        isOnline: expertIsOnline,
-        isBusy: expertIsBusy
-      });
-
-      if (!expertIsOnline) {
-        console.error('❌ Expert is offline (not connected to socket server)');
-        toast.error('Expert is currently offline. Please try again later.');
-        setLoading(false);
-        return;
-      }
-
-      if (expertIsBusy) {
-        console.error('❌ Expert is busy on another call');
-        toast.error('Expert is currently on another call. Please try again later.');
-        setLoading(false);
-        return;
-      }
+      console.log('🚀 Starting Agora audio call...', { expert, user });
 
       // Check user balance
       const minTokens = (expert.tokensPerMinute || 0) * 5;
@@ -70,10 +36,10 @@ const CallModal = ({ expert, onClose }) => {
       console.log('✅ Call created in DB:', res.data);
       const newCallId = res.data.call.id;
 
-      // Emit call:initiate to socket server
-      // This will trigger ActiveCallModal via SocketContext state update
-      console.log('📡 Emitting call:initiate...');
-      const ack = await initiateCall({
+      // Notify expert via socket (for incoming call UI only)
+      // Actual audio connection will be via Agora
+      console.log('📡 Notifying expert via socket...');
+      await initiateCall({
         callId: newCallId,
         expertId: expert._id,
         userId: user._id,
@@ -83,12 +49,8 @@ const CallModal = ({ expert, onClose }) => {
         }
       });
 
-      if (ack && ack.success === false) {
-        throw new Error(ack.error || 'Call initiation failed');
-      }
-
-      console.log('✅ Call initiated successfully');
-      onClose(); // Close this modal, ActiveCallModal takes over
+      console.log('✅ Call initiated successfully - AgoraAudioCall will open');
+      onClose(); // Close this modal, AgoraAudioCall takes over
 
     } catch (error) {
       console.error('❌ Start call error:', error);

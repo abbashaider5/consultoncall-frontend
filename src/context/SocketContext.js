@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import ringtoneAudio from '../assets/soft_ringtone.mp3';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from './AuthContext';
 
@@ -61,14 +60,12 @@ export const SocketProvider = ({ children }) => {
     setOnlineExperts(onlineSet);
     setBusyExperts(busySet);
   }, []);
+  
   const [incomingCall, setIncomingCall] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
-  const [newMessage, setNewMessage] = useState(null);
-  const [unreadCounts, setUnreadCounts] = useState({});
   const { user, expert, isAuthenticated, isExpert } = useAuth();
 
   const socketRef = useRef(null);
-  const incomingCallAudioRef = useRef(null);
   const reconnectAttempts = useRef(0);
 
   // Initialize socket connection
@@ -100,7 +97,7 @@ export const SocketProvider = ({ children }) => {
     console.log('🎭 User type:', isExpert ? 'expert' : 'user');
 
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket'], // Force WebSocket only - NO polling for better stability
+      transports: ['websocket'], // Force WebSocket only
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -108,8 +105,8 @@ export const SocketProvider = ({ children }) => {
       timeout: 45000,
       autoConnect: true,
       forceNew: true,
-      withCredentials: false, // Important for CORS with * or specific origins without cookies
-      path: '/socket.io/' // Ensure path is correct
+      withCredentials: false,
+      path: '/socket.io/'
     });
 
     socketRef.current = newSocket;
@@ -144,25 +141,12 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on('disconnect', (reason) => {
       console.log('🔌 Socket disconnected:', reason);
-      console.log('🔍 Active call exists:', !!activeCall);
-      console.log('🔍 Call status:', activeCall?.status);
-
-      // CRITICAL: Do NOT automatically clear activeCall on socket disconnect
-      // WebRTC peer connection is independent of socket transport
-      // Socket will auto-reconnect and WebRTC will continue
-      // Only clear activeCall if:
-      // 1. Explicit call_ended event received from server
-      // 2. User explicitly ends call
-      // 3. WebRTC explicitly fails
       setIsConnected(false);
 
       if (reason === 'io server disconnect') {
         console.log('🔄 Server disconnected socket - will auto-reconnect');
-        console.log('🎯 IMPORTANT: activeCall state preserved - WebRTC continues independently');
-        // Do NOT reset activeCall - let WebRTC continue
       } else {
         console.log('🔄 Client-side disconnect - will auto-reconnect');
-        console.log('🎯 IMPORTANT: activeCall state preserved - WebRTC continues independently');
       }
     });
 
@@ -183,24 +167,11 @@ export const SocketProvider = ({ children }) => {
         console.log(`📝 Re-registering as ${userType}:`, userId);
         newSocket.emit('register', { userId, userType });
       }
-
-      // If there's an active call, restore the call state
-      if (activeCall) {
-        console.log('🔄 Active call exists after reconnect:', activeCall.callId);
-        console.log('🔄 WebRTC peer connection should still be active');
-        // Socket server will handle re-joining call room via registration
-        // WebRTC peer connection is independent and continues working
-      }
     });
 
     newSocket.on('reconnect_failed', () => {
       console.error('❌ Failed to reconnect after 10 attempts');
       setConnectionError('Failed to connect to server. Please refresh page.');
-    });
-
-    newSocket.on('connect_error', (err) => {
-      console.error('❌ Socket connection error:', err.message);
-      setConnectionError(`Connection error: ${err.message}`);
     });
 
     newSocket.on('registered', async (data) => {
@@ -274,12 +245,10 @@ export const SocketProvider = ({ children }) => {
       });
     });
 
-    // Incoming call (for experts)
+    // Incoming call (for experts) - Only for notification, actual call handled by Agora
     newSocket.on('incoming_call', (data) => {
-      console.log('📞📞📞 INCOMING CALL RECEIVED:', JSON.stringify(data, null, 2));
-      console.log('📞 Setting incoming call state...');
+      console.log('📞 INCOMING CALL NOTIFICATION:', JSON.stringify(data, null, 2));
       
-      // Store caller info for immediate display
       const incomingCallData = {
         callId: data.callId,
         userId: data.userId,
@@ -287,17 +256,12 @@ export const SocketProvider = ({ children }) => {
         callerInfo: data.caller
       };
       
-      console.log('📞 Incoming call data prepared:', incomingCallData);
       setIncomingCall(incomingCallData);
-      playIncomingCallSound();
-      
-      console.log('✅ Incoming call state set and ringtone started');
     });
 
-    // Call accepted (for users) - transition from ringing to accepted
+    // Call accepted (for users)
     newSocket.on('call_accepted', (data) => {
       console.log('✅ Call accepted:', data);
-      // Create activeCall if it doesn't exist (user's ringing is in CallModal local state)
       setActiveCall(prev => prev ? { ...prev, status: 'accepted' } : {
         callId: data.callId,
         userId: data.userId,
@@ -306,7 +270,6 @@ export const SocketProvider = ({ children }) => {
         startTime: null,
         callerInfo: data.callerInfo
       });
-      stopIncomingCallSound();
     });
 
     // Call rejected (for users)
@@ -314,7 +277,6 @@ export const SocketProvider = ({ children }) => {
       console.log('❌ Call rejected:', data);
       setActiveCall(null);
       setIncomingCall(null);
-      stopIncomingCallSound();
     });
 
     // Call timeout
@@ -322,13 +284,11 @@ export const SocketProvider = ({ children }) => {
       console.log('⏱️ Call timeout:', data);
       setActiveCall(null);
       setIncomingCall(null);
-      stopIncomingCallSound();
     });
 
     // Call connected
     newSocket.on('call_connected', (data) => {
       console.log('📞 Call connected event received:', data);
-      console.log('🔍 Updating activeCall state to connected');
       setActiveCall(prev => {
         if (!prev) {
           console.warn('⚠️ No active call found to update');
@@ -338,7 +298,6 @@ export const SocketProvider = ({ children }) => {
         console.log('✅ Active call updated:', { callId: updated.callId, status: updated.status });
         return updated;
       });
-      stopIncomingCallSound();
     });
 
     // Call ended
@@ -346,114 +305,16 @@ export const SocketProvider = ({ children }) => {
       console.log('📞 Call ended:', data);
       setActiveCall(null);
       setIncomingCall(null);
-      stopIncomingCallSound();
-    });
-
-    // WebRTC Signaling Events
-    newSocket.on('webrtc_offer', (data) => {
-      console.log('📡 Received WebRTC offer from server:', { 
-        callId: data.callId, 
-        offerType: data.offer?.type,
-        offerLength: data.offer?.sdp?.length 
-      });
-      if (window.webrtcOfferHandler) {
-        window.webrtcOfferHandler(data);
-      } else {
-        console.error('❌ No webrtcOfferHandler registered!');
-      }
-    });
-
-    newSocket.on('webrtc_answer', (data) => {
-      console.log('📡 Received WebRTC answer from server:', { 
-        callId: data.callId, 
-        answerType: data.answer?.type,
-        answerLength: data.answer?.sdp?.length 
-      });
-      if (window.webrtcAnswerHandler) {
-        window.webrtcAnswerHandler(data);
-      } else {
-        console.error('❌ No webrtcAnswerHandler registered!');
-      }
-    });
-
-    newSocket.on('webrtc_ice', (data) => {
-      console.log('🧊 Received ICE candidate from server:', { 
-        callId: data.callId, 
-        candidateType: data.candidate?.type 
-      });
-      if (window.webrtcIceHandler) {
-        window.webrtcIceHandler(data);
-      } else {
-        console.error('❌ No webrtcIceHandler registered!');
-      }
-    });
-
-    // Chat events
-    newSocket.on('receive_message', (data) => {
-      console.log('💬 New message received:', data);
-
-      // Normalize to the shape Chat.js expects
-      const normalized = {
-        chatId: data.chatId,
-        message: {
-          _id: data.tempId || `${Date.now()}`,
-          sender: data.senderId,
-          content: data.content,
-          createdAt: data.timestamp,
-          read: false
-        },
-        raw: data
-      };
-
-      setNewMessage(normalized);
-
-      if (data.chatId) {
-        setUnreadCounts((prev) => ({
-          ...prev,
-          [data.chatId]: (prev[data.chatId] || 0) + 1
-        }));
-      }
-    });
-
-    newSocket.on('typing_status', (data) => {
-      // Broadcast this via a custom event specific to the sender
-      // Or update a simplified state if only 1-on-1 chat is focused
-      const event = new CustomEvent('chat_typing', { detail: data });
-      window.dispatchEvent(event);
-    });
-
-    newSocket.on('messages_read', (data) => {
-      console.log('✅ Messages read:', data);
-      const event = new CustomEvent('chat_read', { detail: data });
-      window.dispatchEvent(event);
     });
 
     return () => {
       if (newSocket) {
         newSocket.disconnect();
       }
-      stopIncomingCallSound();
     };
   }, [isAuthenticated, isExpert, user, expert]);
 
-  const playIncomingCallSound = useCallback(() => {
-    if (!incomingCallAudioRef.current) {
-      incomingCallAudioRef.current = new Audio(ringtoneAudio);
-      incomingCallAudioRef.current.loop = true;
-    }
-    incomingCallAudioRef.current.play().catch(error => {
-      console.error('Error playing ringtone:', error);
-    });
-  }, []);
-
-  const stopIncomingCallSound = useCallback(() => {
-    if (incomingCallAudioRef.current) {
-      incomingCallAudioRef.current.pause();
-      incomingCallAudioRef.current.currentTime = 0;
-    }
-  }, []);
-
-  // Initiate call (caller side)
+  // Initiate call (caller side) - Just notification, actual call via Agora
   const initiateCall = useCallback((data) => {
     if (!socket || !isConnected) {
       return Promise.resolve({ success: false, error: 'Socket not connected' });
@@ -462,13 +323,12 @@ export const SocketProvider = ({ children }) => {
     const callerId = isExpert ? (expert?._id || expert?.id) : (user?._id || user?.id);
     const payload = {
       ...data,
-      // Ensure userId always exists for socket-server
       ...(callerId ? { userId: data.userId || callerId } : {})
     };
 
-    console.log('socket emit call:initiate', payload);
+    console.log('📞 Emitting call:initiate for notification');
 
-    // Set activeCall immediately to show the modal in "Ringing" state
+    // Set activeCall immediately to show modal in "Ringing" state
     setActiveCall({
       callId: data.callId,
       userId: data.userId,
@@ -505,7 +365,7 @@ export const SocketProvider = ({ children }) => {
     // Emit accept to socket server (will notify user)
     socket.emit('accept_call', { callId });
 
-    // Clear incoming, set active as accepted (not connected yet - wait for WebRTC)
+    // Clear incoming, set active as accepted (not connected yet - wait for Agora)
     setIncomingCall(null);
     setActiveCall({
       callId,
@@ -515,9 +375,7 @@ export const SocketProvider = ({ children }) => {
       startTime: null,
       callerInfo
     });
-
-    stopIncomingCallSound();
-  }, [socket, isConnected, stopIncomingCallSound]);
+  }, [socket, isConnected]);
 
   const rejectCall = useCallback(async (data) => {
     if (!socket || !isConnected) return;
@@ -537,8 +395,7 @@ export const SocketProvider = ({ children }) => {
     socket.emit('reject_call', { callId, reason });
     setIncomingCall(null);
     setActiveCall(null);
-    stopIncomingCallSound();
-  }, [socket, isConnected, stopIncomingCallSound]);
+  }, [socket, isConnected]);
 
   const markCallConnected = useCallback((data) => {
     if (!socket) return;
@@ -556,7 +413,7 @@ export const SocketProvider = ({ children }) => {
 
     console.log('🔚 Ending call:', payload.callId);
 
-    // CRITICAL: Emit end_call via socket to broadcast to BOTH sides
+    // Emit end_call via socket to broadcast to BOTH sides
     if (socket && socket.connected) {
       console.log('📡 Broadcasting call_ended to server');
       socket.emit('end_call', payload);
@@ -583,107 +440,7 @@ export const SocketProvider = ({ children }) => {
     console.log('🧹 Clearing activeCall and incomingCall state');
     setActiveCall(null);
     setIncomingCall(null);
-    stopIncomingCallSound();
-  }, [socket, stopIncomingCallSound]);
-
-  const sendOffer = useCallback((data) => {
-    if (socket && socket.connected) {
-      console.log('📤 Emitting webrtc_offer to server:', { callId: data.callId, offerLength: data.offer.sdp.length });
-      socket.emit('webrtc_offer', data);
-      console.log('✅ webrtc_offer emitted successfully');
-    } else {
-      console.error('❌ Cannot send offer - socket not connected:', { 
-        socketExists: !!socket, 
-        isConnected: socket?.connected 
-      });
-    }
   }, [socket]);
-
-  const sendAnswer = useCallback((data) => {
-    if (socket && socket.connected) {
-      console.log('📤 Emitting webrtc_answer to server:', { callId: data.callId, answerLength: data.answer.sdp.length });
-      socket.emit('webrtc_answer', data);
-      console.log('✅ webrtc_answer emitted successfully');
-    } else {
-      console.error('❌ Cannot send answer - socket not connected:', { 
-        socketExists: !!socket, 
-        isConnected: socket?.connected 
-      });
-    }
-  }, [socket]);
-
-  const sendIceCandidate = useCallback((data) => {
-    if (socket && socket.connected) {
-      console.log('🧊 Emitting webrtc_ice to server:', { 
-        callId: data.callId, 
-        candidateType: data.candidate.type 
-      });
-      socket.emit('webrtc_ice', data);
-      // Don't log success for every ICE candidate - too noisy
-    } else {
-      console.error('❌ Cannot send ICE candidate - socket not connected:', { 
-        socketExists: !!socket, 
-        isConnected: socket?.connected 
-      });
-    }
-  }, [socket]);
-
-  // Chat functions
-  const sendMessage = useCallback((receiverId, content, type = 'text', meta = {}) => {
-    if (!socket || !isConnected) {
-      return Promise.reject(new Error('Socket not connected'));
-    }
-
-    // Generate temp ID for optimistic UI
-    const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-
-    return new Promise((resolve, reject) => {
-      socket.emit('send_message', {
-        receiverId,
-        content,
-        type,
-        tempId,
-        ...(meta?.chatId ? { chatId: meta.chatId } : {})
-      }, (response) => {
-        if (response.success) {
-          resolve({ ...response, tempId });
-        } else {
-          reject(new Error(response.error || 'Failed to send message'));
-        }
-      });
-    });
-  }, [socket, isConnected]);
-
-  // Compatibility helpers for Chat.js (conversation-based UI)
-  const joinChatRoom = useCallback(() => {
-    // No room concept on server for chats right now
-  }, []);
-
-  const leaveChatRoom = useCallback(() => {
-    // No room concept on server for chats right now
-  }, []);
-
-  const sendChatMessage = useCallback((chatId, receiverId, message) => {
-    if (!receiverId || !message?.content) return;
-    return sendMessage(receiverId, message.content, 'text', { chatId });
-  }, [sendMessage]);
-
-  const clearUnreadCount = useCallback((chatId) => {
-    if (!chatId) return;
-    setUnreadCounts((prev) => ({ ...prev, [chatId]: 0 }));
-  }, []);
-
-  const sendTyping = useCallback((receiverId, isTyping) => {
-    if (socket && isConnected) {
-      socket.emit('typing', { receiverId, isTyping });
-    }
-  }, [socket, isConnected]);
-
-  const markMessagesRead = useCallback((senderId, messageIds) => {
-    if (socket && isConnected) {
-      socket.emit('message_read', { senderId, messageIds });
-    }
-  }, [socket, isConnected]);
 
   const isExpertBusy = useCallback((expertId) => {
     return busyExperts.has(expertId);
@@ -751,8 +508,6 @@ export const SocketProvider = ({ children }) => {
     expertStatuses,
     incomingCall,
     activeCall,
-    newMessage,
-    unreadCounts,
     isExpertOnline,
     isExpertBusy,
     getExpertStatus,
@@ -764,17 +519,7 @@ export const SocketProvider = ({ children }) => {
     acceptCall,
     rejectCall,
     markCallConnected,
-    endCall,
-    sendOffer,
-    sendAnswer,
-    sendIceCandidate,
-    sendMessage,
-    sendChatMessage,
-    joinChatRoom,
-    leaveChatRoom,
-    sendTyping,
-    markMessagesRead,
-    clearUnreadCount
+    endCall
   };
 
   return (
