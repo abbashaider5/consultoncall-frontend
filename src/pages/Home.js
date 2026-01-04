@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { faArrowRight, faBolt, faCheck, faCircle, faSearch, faShieldAlt, faUsers } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowRight, faCheck, faCircle, faSearch, faShieldAlt, faUsers, faBolt } from '@fortawesome/free-solid-svg-icons';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ExpertCard from '../components/ExpertCard';
 import Footer from '../components/Footer';
@@ -16,7 +16,7 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
-  const { onlineExperts } = useSocket();
+  const { onlineExperts, initializeExpertStatus } = useSocket();
 
   const [dataFetched, setDataFetched] = useState(false);
 
@@ -51,6 +51,13 @@ const Home = () => {
       setCategories(safeCategories);
       setExperts(safeExperts);
       setFilteredExperts(safeExperts);
+      
+      // Initialize expert statuses in SocketContext for real-time updates
+      // This ensures expert cards show correct status from API initially,
+      // then socket events update status in real-time
+      if (typeof initializeExpertStatus === 'function') {
+        initializeExpertStatus(safeExperts);
+      }
       
       setDataFetched(true);
     } catch (error) {

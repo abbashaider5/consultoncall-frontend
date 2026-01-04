@@ -24,6 +24,43 @@ export const SocketProvider = ({ children }) => {
   const [onlineExperts, setOnlineExperts] = useState(new Set());
   const [busyExperts, setBusyExperts] = useState(new Set());
   const [expertStatuses, setExpertStatuses] = useState(new Map());
+  
+  // Initialize expert statuses from API data (for initial display)
+  const initializeExpertStatus = useCallback((experts) => {
+    if (!Array.isArray(experts)) return;
+    
+    const statusMap = new Map();
+    const onlineSet = new Set();
+    const busySet = new Set();
+    
+    experts.forEach(expert => {
+      const expertId = expert._id || expert.id;
+      if (!expertId) return;
+      
+      // Initialize from API data
+      const isOnline = !!expert.isOnline;
+      const isBusy = !!expert.isBusy;
+      
+      statusMap.set(expertId, {
+        isOnline,
+        isBusy,
+        lastUpdated: Date.now(),
+        currentCallId: expert.currentCallId
+      });
+      
+      if (isOnline) {
+        onlineSet.add(expertId);
+      }
+      
+      if (isBusy) {
+        busySet.add(expertId);
+      }
+    });
+    
+    setExpertStatuses(statusMap);
+    setOnlineExperts(onlineSet);
+    setBusyExperts(busySet);
+  }, []);
   const [incomingCall, setIncomingCall] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
   const [newMessage, setNewMessage] = useState(null);
@@ -613,6 +650,7 @@ export const SocketProvider = ({ children }) => {
     getExpertStatusDetail,
     canExpertReceiveCall,
     refreshBusyExperts,
+    initializeExpertStatus,
     initiateCall,
     acceptCall,
     rejectCall,

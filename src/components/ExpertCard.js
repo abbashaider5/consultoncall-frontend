@@ -46,28 +46,18 @@ const ExpertCard = ({ expert }) => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  const isExpertOnlineFn =
-    typeof socketContext?.isExpertOnline === 'function'
-      ? socketContext.isExpertOnline
-      : () => false;
-
-  const isExpertBusyFn =
-    typeof socketContext?.isExpertBusy === 'function'
-      ? socketContext.isExpertBusy
-      : () => false;
-
   const getExpertStatusFn =
     typeof socketContext?.getExpertStatus === 'function'
       ? socketContext.getExpertStatus
       : () => ({ text: 'Offline', color: '#6c757d' });
 
-  // Use expert.isOnline from API data as primary source
-  // Socket events will update this real-time
-  const isOnline = expert.isOnline || isExpertOnlineFn(expert._id);
-
-  const isBusy = isExpertBusyFn(expert._id) || expert.isBusy || false;
-
+  // Use socket-based status (same logic as ExpertProfile)
+  // Real-time updates via SocketContext, no API flag dependency
   const expertStatus = getExpertStatusFn(expert._id);
+
+  // Extract status flags from socket-based status
+  const isOnline = expertStatus.status === 'online';
+  const isBusy = expertStatus.status === 'busy';
 
   const handleChatClick = async (e) => {
     e.preventDefault();
