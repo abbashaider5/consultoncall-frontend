@@ -10,6 +10,9 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import './Chat.css';
 
+// Message sound
+let messageSound = null;
+
 const Chat = () => {
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
@@ -19,12 +22,35 @@ const Chat = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef(null);
   const { newMessage, sendChatMessage, clearUnreadCount, unreadCounts, getExpertStatus } = useSocket();
   const { isExpert, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const currentUserId = localStorage.getItem('userId');
+
+  // Initialize message sound
+  useEffect(() => {
+    if (!messageSound) {
+      messageSound = new Audio('/assets/new-message-tone.mp3');
+      messageSound.volume = 0.3;
+    }
+  }, []);
+
+  const playMessageSound = () => {
+    if (messageSound) {
+      messageSound.play().catch(err => console.log('Sound play error:', err));
+    }
+  };
+
+  // Filter chats by search
+  const filteredChats = chats.filter(chat => {
+    if (!searchQuery) return true;
+    const other = getOtherParticipant(chat);
+    return other?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   // Load chats
   useEffect(() => {
@@ -48,15 +74,32 @@ const Chat = () => {
     }
   }, [chats, searchParams, currentUserId, selectedChat, navigate]);
 
+  // Handle typing indicator
+  useEffect(() => {
+    const handleTyping = (e) => {
+      if (selectedChat && e.detail?.chatId === selectedChat._id) {
+        setIsTyping(e.detail.isTyping);
+      }
+    };
+
+    window.addEventListener('chat_typing', handleTyping);
+    return () => window.removeEventListener('chat_typing', handleTyping);
+  }, [selectedChat]);
+
   // Handle new messages
   useEffect(() => {
     if (!newMessage || !selectedChat) return;
     if (newMessage.chatId && newMessage.chatId === selectedChat._id && newMessage.message) {
+      // Play sound for incoming messages
+      if (newMessage.message.sender !== currentUserId) {
+        playMessageSound();
+      }
+      
       setMessages(prev => [...prev, newMessage.message]);
       scrollToBottom();
       clearUnreadCount?.(selectedChat._id);
     }
-  }, [newMessage, selectedChat, clearUnreadCount]);
+  }, [newMessage, selectedChat, clearUnreadCount, currentUserId]);
 
   // Load messages + mark read when chat is selected
   useEffect(() => {
@@ -163,27 +206,41 @@ const Chat = () => {
 
     if (!messageText.trim() || !selectedChat) return;
 
-    setSending(true);
+    // Optimistic UI update
+    const tempMessage = {
+      _id: `temp-${Date.now()}`,
+      content: messageText.trim(),
+      sender: currentUserId,
+      createdAt: new Date().toISOString(),
+      status: 'sending'
+    };
+
+    setMessages(prev => [...prev, tempMessage]);
+    setMessageText('');
+    scrollToBottom();
+
     try {
       const { data } = await axios.post(`/api/chats/${selectedChat._id}/messages`, {
         content: messageText.trim()
       });
 
-      setMessages(prev => [...prev, data]);
-      setMessageText('');
+      // Replace temp message with real message
+      setMessages(prev => prev.map(msg => 
+        msg._id === tempMessage._id ? { ...data, status: 'sent' } : msg
+      ));
 
       // Send via socket for real-time delivery
       const other = getOtherParticipant(selectedChat);
       if (sendChatMessage && other?._id) {
-        // Relay minimal data; receiver will update UI via receive_message
         await sendChatMessage(selectedChat._id, other._id, { content: data.content });
       }
 
     } catch (error) {
       console.error('Send message error:', error);
       toast.error(error.response?.data?.message || 'Failed to send message');
-    } finally {
-      setSending(false);
+      setMessages(prev => prev.map(msg => 
+        msg._id === tempMessage._id ? { ...msg, status: 'failed' } : msg
+      ));
     }
   };
 
@@ -211,17 +268,12 @@ const Chat = () => {
   const formatTime = (date) => {
     const messageDate = new Date(date);
     const now = new Date();
-    const diffTime = Math.abs(now - messageDate);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) {
-      return messageDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return messageDate.toLocaleDateString('en-US', { weekday: 'short' });
+    const isToday = messageDate.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else {
-      return messageDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return messageDate.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
   };
 
@@ -263,6 +315,16 @@ const Chat = () => {
         <div className="chat-list-header">
           <h2>Messages</h2>
         </div>
+        <div className="chat-search">
+          <FiSearch className="search-icon" />
+          <input
+            type="text"
+            placeholder="Search conversations..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="search-input"
+          />
+        </div>
         <div className="chat-list-items">
           {loading ? (
             /* Skeleton Loading for Chat List */
@@ -284,13 +346,15 @@ const Chat = () => {
             </>
           ) : chats.length === 0 ? (
             <div className="no-chats">
-              <p>No conversations yet</p>
+              <div className="no-chats-icon">💬</div>
+              <h3>No conversations yet</h3>
+              <p>Start chatting with experts to get personalized advice</p>
               <button onClick={() => navigate('/experts')} className="btn-primary">
                 Find an Expert
               </button>
             </div>
           ) : (
-            chats.map(chat => {
+            filteredChats.map(chat => {
               const otherUser = getOtherParticipant(chat);
               const unread = unreadCounts[chat._id] || 0;
 
@@ -305,17 +369,22 @@ const Chat = () => {
                     alt={otherUser?.name}
                     className="chat-avatar"
                   />
-                  <div className="chat-item-content">
-                    <div className="chat-item-header">
-                      <span className="chat-name">{otherUser?.name}</span>
-                      <span className="chat-time">{formatTime(chat.lastMessageTime)}</span>
-                    </div>
-                    <div className="chat-item-footer">
-                      <p className="chat-last-message">{chat.lastMessage || 'No messages yet'}</p>
-                      {unread > 0 && <span className="unread-badge">{unread}</span>}
-                    </div>
-                  </div>
+              <div className="chat-item-content">
+                <div className="chat-item-header">
+                  <span className="chat-name">
+                    {otherUser?.name}
+                    {otherUser?.role === 'expert' && otherUser?.isVerified && (
+                      <VerifiedBadge size="small" />
+                    )}
+                  </span>
+                  <span className="chat-time">{formatTime(chat.lastMessageTime)}</span>
                 </div>
+                <div className="chat-item-footer">
+                  <p className="chat-last-message">{chat.lastMessage || 'No messages yet'}</p>
+                  {unread > 0 && <span className="unread-badge">{unread}</span>}
+                </div>
+              </div>
+            </div>
               );
             })
           )}
@@ -332,27 +401,26 @@ const Chat = () => {
                 <button className="back-btn" onClick={() => setSelectedChat(null)}>
                   <FiArrowLeft />
                 </button>
-                <img
-                  src={getOtherParticipant(selectedChat)?.avatar || 'https://via.placeholder.com/40'}
-                  alt={getOtherParticipant(selectedChat)?.name}
-                  className="chat-header-avatar"
-                />
+                <div className="avatar-wrapper">
+                  <img
+                    src={getOtherParticipant(selectedChat)?.avatar || 'https://via.placeholder.com/40'}
+                    alt={getOtherParticipant(selectedChat)?.name}
+                    className="chat-header-avatar"
+                  />
+                  {getOtherParticipant(selectedChat)?.role === 'expert' && (
+                    <div className={`status-indicator status-${getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.status || 'offline'}`}></div>
+                  )}
+                </div>
                 <div className="chat-header-info">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div className="name-row">
                     <h3>{getOtherParticipant(selectedChat)?.name}</h3>
                     {getOtherParticipant(selectedChat)?.role === 'expert' && getOtherParticipant(selectedChat)?.isVerified && (
                       <VerifiedBadge size="small" />
                     )}
                   </div>
-                  <span
-                    className="chat-header-role"
-                    style={{
-                      color: getOtherParticipant(selectedChat)?.role === 'expert'
-                        ? (getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.color || '#6c757d')
-                        : '#6c757d'
-                    }}
-                  >
-                    {getOtherParticipant(selectedChat)?.role === 'expert'
+                  <span className="status-label">
+                    {isTyping ? 'Typing...' : 
+                     getOtherParticipant(selectedChat)?.role === 'expert'
                       ? (getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.text || 'Offline')
                       : 'User'
                     }
@@ -380,61 +448,101 @@ const Chat = () => {
               </div>
             </div>
 
-            {/* Messages Area */}
-            <div className="messages-container">
-              {loadingMessages ? (
-                /* Skeleton Loading for Messages */
-                <div className="messages-skeleton">
-                  <div className="message other"><div className="message-bubble"><Skeleton width={150} /></div></div>
-                  <div className="message own"><div className="message-bubble"><Skeleton width={200} /></div></div>
-                  <div className="message other"><div className="message-bubble"><Skeleton width={120} /><Skeleton width={80} /></div></div>
-                  <div className="message own"><div className="message-bubble"><Skeleton width={180} /></div></div>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="no-messages">
-                  <p>No messages yet. Start the conversation!</p>
-                </div>
-              ) : (
-                messages.map((msg, index) => {
-                  const isOwn = msg.sender === currentUserId;
-                  const prevMsg = index > 0 ? messages[index - 1] : null;
-                  const showDateSeparator = shouldShowDateSeparator(msg, prevMsg);
+              {/* Messages Area */}
+              <div className="messages-container">
+                {loadingMessages ? (
+                  /* Skeleton Loading for Messages */
+                  <div className="messages-skeleton">
+                    <div className="message other"><div className="message-bubble"><Skeleton width={150} /></div></div>
+                    <div className="message own"><div className="message-bubble"><Skeleton width={200} /></div></div>
+                    <div className="message other"><div className="message-bubble"><Skeleton width={120} /><Skeleton width={80} /></div></div>
+                    <div className="message own"><div className="message-bubble"><Skeleton width={180} /></div></div>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="no-messages">
+                    <div className="empty-icon">💬</div>
+                    <h3>No messages yet</h3>
+                    <p>Start the conversation with {getOtherParticipant(selectedChat)?.name}</p>
+                  </div>
+                ) : (
+                  messages.map((msg, index) => {
+                    const isOwn = msg.sender === currentUserId;
+                    const prevMsg = index > 0 ? messages[index - 1] : null;
+                    const showDateSeparator = shouldShowDateSeparator(msg, prevMsg);
 
-                  return (
-                    <div key={index}>
-                      {showDateSeparator && (
-                        <div className="date-separator">
-                          <span>{formatDateSeparator(msg.createdAt)}</span>
-                        </div>
-                      )}
-                      <div className={`message ${isOwn ? 'own' : 'other'}`}>
-                        <div className="message-bubble">
-                          <p>{msg.content}</p>
-                          <span className="message-time">{formatTime(msg.createdAt)}</span>
-                          {isOwn && <span className="message-status">✓✓</span>}
+                    return (
+                      <div key={msg._id || index}>
+                        {showDateSeparator && (
+                          <div className="date-separator">
+                            <span>{formatDateSeparator(msg.createdAt)}</span>
+                          </div>
+                        )}
+                        <div className={`message ${isOwn ? 'own' : 'other'}`}>
+                          {!isOwn && (
+                            <div className="message-avatar">
+                              {getOtherParticipant(selectedChat)?.avatar ? (
+                                <img src={getOtherParticipant(selectedChat)?.avatar} alt="" />
+                              ) : (
+                                <div className="avatar-placeholder-small">
+                                  {getOtherParticipant(selectedChat)?.name?.charAt(0)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <div className="message-content">
+                            {!isOwn && (
+                              <span className="sender-name">{getOtherParticipant(selectedChat)?.name}</span>
+                            )}
+                            <div className="message-bubble">
+                              <p>{msg.content}</p>
+                              <div className="message-meta">
+                                <span className="message-time">{formatTime(msg.createdAt)}</span>
+                                {isOwn && (
+                                  <span className="message-status">
+                                    {msg.status === 'sending' ? '🕒' : 
+                                     msg.status === 'failed' ? '⚠️' : '✓✓'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
               <div ref={messagesEndRef} />
             </div>
 
             {/* Message Input */}
-            <form className="message-input-container" onSubmit={handleSendMessage}>
-              <input
-                type="text"
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                placeholder="Type a message..."
-                className="message-input"
-                disabled={sending}
-              />
-              <button type="submit" className="send-btn" disabled={sending || !messageText.trim()}>
-                <FiSend />
-              </button>
-            </form>
+            {isBlocked ? (
+              <div className="blocked-input-notice">
+                <div className="blocked-icon">🚫</div>
+                <div className="blocked-text">
+                  <strong>Conversation Blocked</strong>
+                  <p>You have blocked this user. Unblock to send messages.</p>
+                </div>
+                {isExpert && (
+                  <button className="unblock-btn" onClick={handleBlockToggle}>
+                    Unblock
+                  </button>
+                )}
+              </div>
+            ) : (
+              <form className="message-input-container" onSubmit={handleSendMessage}>
+                <input
+                  type="text"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  placeholder="Type a message..."
+                  className="message-input"
+                  disabled={sending}
+                />
+                <button type="submit" className="send-btn" disabled={sending || !messageText.trim()}>
+                  <FiSend />
+                </button>
+              </form>
+            )}
           </>
         ) : (
           <div className="no-chat-selected">

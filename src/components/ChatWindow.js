@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaCheckCircle } from 'react-icons/fa';
-import { FiPaperclip, FiSend, FiX } from 'react-icons/fi';
+import { FiMoreVertical, FiPaperclip, FiPhone, FiSend, FiVideo, FiX } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { axiosInstance } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -12,23 +12,53 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
     const [newMessage, setNewMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isBlocked, setIsBlocked] = useState(false);
-    const [onlineStatus, setOnlineStatus] = useState(true);
+    const [isTyping, setIsTyping] = useState(false);
+    const [onlineStatus, setOnlineStatus] = useState('offline');
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    // Message sound
+    const messageSoundRef = useRef(null);
 
     const {
         sendMessage,
         sendTyping,
         markMessagesRead,
         newMessage: incomingMessage,
-        socket
+        unreadCounts,
+        clearUnreadCount,
+        socket,
+        getExpertStatus
     } = useSocket();
     const { user, expert, isExpert } = useAuth();
 
+    const currentUserId = isExpert ? expert._id : user._id;
     const messagesEndRef = useRef(null);
     const chatContainerRef = useRef(null);
     const inputRef = useRef(null);
     const typingTimeoutRef = useRef(null);
 
-    const currentUserId = isExpert ? expert._id : user._id;
+    // Initialize message sound
+    useEffect(() => {
+        if (!messageSoundRef.current) {
+            messageSoundRef.current = new Audio('/assets/new-message-tone.mp3');
+            messageSoundRef.current.volume = 0.3;
+        }
+    }, []);
+
+    // Play message sound for incoming messages
+    const playMessageSound = () => {
+        if (messageSoundRef.current) {
+            messageSoundRef.current.play().catch(err => console.log('Sound play error:', err));
+        }
+    };
+
+    // Get online status from SocketContext
+    useEffect(() => {
+        if (recipientId) {
+            const status = getExpertStatus(recipientId);
+            setOnlineStatus(status.status || 'offline');
+        }
+    }, [recipientId, getExpertStatus]);
 
     // Check block status
     useEffect(() => {
@@ -47,6 +77,25 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
         }
     }, [isOpen, recipientId]);
 
+    // Clear unread count when chat opens
+    useEffect(() => {
+        if (isOpen && recipientId) {
+            clearUnreadCount(recipientId);
+        }
+    }, [isOpen, recipientId, clearUnreadCount]);
+
+    // Handle typing indicator
+    useEffect(() => {
+        const handleTyping = (e) => {
+            if (e.detail?.senderId === recipientId) {
+                setIsTyping(e.detail.isTyping);
+            }
+        };
+
+        window.addEventListener('chat_typing', handleTyping);
+        return () => window.removeEventListener('chat_typing', handleTyping);
+    }, [recipientId]);
+
     // Handle block/unblock
     const handleBlockToggle = async () => {
         try {
@@ -62,14 +111,13 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
         } catch (error) {
             toast.error(error.response?.data?.message || 'Action failed');
         }
+        setMenuOpen(false);
     };
 
     // Initial Fetch
     useEffect(() => {
         if (isOpen && recipientId) {
-            fetchMessages(1, true);
-            // Mark read
-            // markMessagesRead(recipientId, []); // We can implement bulk read later
+            fetchMessages();
         }
     }, [isOpen, recipientId]);
 
@@ -77,16 +125,22 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
     useEffect(() => {
         if (incomingMessage && isOpen) {
             if (incomingMessage.senderId === recipientId || incomingMessage.receiverId === recipientId) {
-                // Check if message already exists (to avoid duplicates from optimistic updates if any)
+                // Check if message already exists (to avoid duplicates from optimistic updates)
                 setMessages(prev => {
                     const exists = prev.some(m => m._id === incomingMessage.tempId || m._id === incomingMessage._id);
                     if (exists) return prev;
+                    
+                    // Play sound for incoming messages
+                    if (incomingMessage.senderId === recipientId) {
+                        playMessageSound();
+                    }
+                    
                     return [...prev, {
                         _id: incomingMessage._id || incomingMessage.tempId || Date.now(),
                         sender: incomingMessage.senderId,
                         content: incomingMessage.content,
-                        createdAt: incomingMessage.timestamp,
-                        type: incomingMessage.type
+                        createdAt: incomingMessage.timestamp || new Date().toISOString(),
+                        type: incomingMessage.type || 'text'
                     }];
                 });
                 scrollToBottom();
@@ -99,15 +153,15 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
         }
     }, [incomingMessage, isOpen, recipientId]);
 
-    const fetchMessages = async (pageNum, reset = false) => {
+    const fetchMessages = async () => {
         try {
             if (!recipientId) return;
             setIsLoading(true);
-            const res = await axiosInstance.get(`/api/chat/history/${recipientId}?page=${pageNum}`);
+            const res = await axiosInstance.get(`/api/chat/history/${recipientId}`);
 
             if (res.data.success) {
-                setMessages(prev => reset ? res.data.messages : [...res.data.messages, ...prev]);
-                if (reset) scrollToBottom();
+                setMessages(res.data.messages || []);
+                setTimeout(scrollToBottom, 100);
             }
         } catch (error) {
             console.error('Failed to fetch messages', error);
@@ -134,12 +188,14 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
             sender: currentUserId,
             content: content,
             createdAt: new Date().toISOString(),
-            status: 'sending'
+            status: 'sending',
+            type: 'text'
         };
 
         setMessages(prev => [...prev, optimisticMsg]);
         setNewMessage('');
         scrollToBottom();
+        inputRef.current?.focus();
 
         try {
             // 1. Persist to DB
@@ -152,18 +208,24 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
                 const savedMsg = res.data.message;
 
                 // Update optimistic message with real one
-                setMessages(prev => prev.map(m => m._id === tempId ? { ...savedMsg, sender: savedMsg.sender._id } : m));
+                setMessages(prev => prev.map(m => m._id === tempId ? { 
+                    ...savedMsg, 
+                    sender: savedMsg.sender._id,
+                    status: 'sent',
+                    type: 'text'
+                } : m));
 
                 // 2. Emit to Socket (for real-time delivery to recipient)
-                sendMessage(recipientId, content);
+                await sendMessage(recipientId, content);
             }
         } catch (error) {
             console.error('Failed to send message', error);
             setMessages(prev => prev.map(m => m._id === tempId ? { ...m, status: 'failed' } : m));
+            toast.error('Failed to send message');
         }
     };
 
-    const handleTyping = (e) => {
+    const handleTypingChange = (e) => {
         setNewMessage(e.target.value);
 
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -175,106 +237,194 @@ const ChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipientAvat
         }, 2000);
     };
 
+    const formatTime = (dateString) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const isToday = date.toDateString() === now.toDateString();
+        
+        if (isToday) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else {
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+    };
+
+    const isMe = (msg) => msg.sender === currentUserId || msg.sender?._id === currentUserId;
+
     if (!isOpen) return null;
 
     return (
-        <div className={`chat-window-overlay ${isOpen ? 'open' : ''}`} onClick={onClose}>
-            <div className="chat-window" onClick={e => e.stopPropagation()}>
+        <div className={`messenger-chat-overlay ${isOpen ? 'open' : ''}`} onClick={onClose}>
+            <div className="messenger-chat-container" onClick={e => e.stopPropagation()}>
                 {/* Header */}
-                <div className="chat-header">
-                    <div className="recipient-info">
-                        <div className="avatar-container">
-                            {recipientAvatar ? (
-                                <img src={recipientAvatar} alt={recipientName} />
-                            ) : (
-                                <div className="avatar-placeholder">{recipientName?.charAt(0)}</div>
-                            )}
-                            <div className={`online-status-dot ${onlineStatus ? 'online' : ''}`}></div>
-                        </div>
-                        <div className="text-info">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <h3>{recipientName}</h3>
-                                {isVerified && <FaCheckCircle style={{ color: '#936AAC', fontSize: '16px' }} />}
+                <div className="messenger-header">
+                    <div className="header-left">
+                        <button className="back-btn" onClick={onClose}>
+                            <FiX />
+                        </button>
+                        <div className="profile-info">
+                            <div className="avatar-wrapper">
+                                {recipientAvatar ? (
+                                    <img src={recipientAvatar} alt={recipientName} />
+                                ) : (
+                                    <div className="avatar-placeholder">{recipientName?.charAt(0)}</div>
+                                )}
+                                <div className={`status-indicator status-${onlineStatus}`}></div>
                             </div>
-                            <span className="status-text">{onlineStatus ? 'Online' : 'Offline'}</span>
+                            <div className="info-text">
+                                <div className="name-row">
+                                    <h3>{recipientName}</h3>
+                                    {isVerified && <FaCheckCircle className="verified-badge" />}
+                                </div>
+                                <span className="status-label">
+                                    {isTyping ? 'Typing...' : 
+                                     onlineStatus === 'online' ? 'Active now' : 
+                                     onlineStatus === 'busy' ? 'In a call' : 'Offline'}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <div className="header-actions">
-                        {isExpert && (
-                            <button 
-                                className={`block-btn ${isBlocked ? 'blocked' : ''}`}
-                                onClick={handleBlockToggle}
-                                title={isBlocked ? 'Unblock User' : 'Block User'}
-                            >
-                                {isBlocked ? 'Unblock' : 'Block'}
+                    
+                    <div className="header-right">
+                        <div className="header-actions">
+                            <button className="action-btn" title="Voice Call">
+                                <FiPhone />
                             </button>
-                        )}
-                        <button className="close-btn" onClick={onClose}><FiX /></button>
+                            <button className="action-btn" title="Video Call">
+                                <FiVideo />
+                            </button>
+                            <div className="menu-wrapper">
+                                <button 
+                                    className="action-btn menu-btn" 
+                                    onClick={() => setMenuOpen(!menuOpen)}
+                                >
+                                    <FiMoreVertical />
+                                </button>
+                                {menuOpen && (
+                                    <div className="menu-dropdown">
+                                        {isExpert && (
+                                            <button className="menu-item" onClick={handleBlockToggle}>
+                                                {isBlocked ? 'Unblock User' : 'Block User'}
+                                            </button>
+                                        )}
+                                        <button className="menu-item" onClick={() => setMenuOpen(false)}>
+                                            View Profile
+                                        </button>
+                                        <button className="menu-item" onClick={() => setMenuOpen(false)}>
+                                            Search in Conversation
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 {/* Messages */}
-                <div className="messages-container" ref={chatContainerRef}>
+                <div className="messenger-messages" ref={chatContainerRef}>
                     {isLoading && messages.length === 0 ? (
-                        <div className="loading-skeleton">
-                            {[1, 2, 3, 4, 5].map(i => (
-                                <div key={i} className={`skeleton-message ${i % 2 === 0 ? 'left' : 'right'}`}>
-                                    <div className="skeleton-bubble"></div>
+                        <div className="messages-loading">
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className={`message-skeleton ${i % 2 === 0 ? 'received' : 'sent'}`}>
+                                    <div className="skeleton-avatar"></div>
+                                    <div className="skeleton-content">
+                                        <div className="skeleton-bubble"></div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     ) : messages.length === 0 ? (
-                        <div className="empty-state">
-                            <p>No messages yet</p>
-                            <small>Start the conversation with {recipientName}</small>
+                        <div className="empty-conversation">
+                            <div className="empty-icon">💬</div>
+                            <h3>No messages yet</h3>
+                            <p>Start a conversation with {recipientName}</p>
                         </div>
                     ) : (
-                        messages.map((msg, index) => {
-                            const isMe = msg.sender === currentUserId || msg.sender?._id === currentUserId;
-
-                            return (
-                                <div key={msg._id} className={`message-wrapper ${isMe ? 'mine' : 'theirs'}`}>
-                                    <div className="message-bubble">
-                                        {msg.type === 'image' ? (
-                                            <img src={msg.content} alt="Attachment" className="msg-image" />
-                                        ) : (
-                                            <p>{msg.content}</p>
+                        <div className="messages-list">
+                            {messages.map((msg, index) => {
+                                const sent = isMe(msg);
+                                const showAvatar = !sent && (index === 0 || !isMe(messages[index - 1]));
+                                
+                                return (
+                                    <div key={msg._id} className={`message-row ${sent ? 'sent' : 'received'}`}>
+                                        {!sent && (
+                                            <div className="message-avatar">
+                                                {recipientAvatar ? (
+                                                    <img src={recipientAvatar} alt="" />
+                                                ) : (
+                                                    <div className="avatar-placeholder-small">
+                                                        {recipientName?.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
-                                        <span className="msg-time">
-                                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            {isMe && (
-                                                <span className="msg-status">
-                                                    {msg.status === 'sending' ? '🕒' : '✓'}
-                                                </span>
+                                        <div className="message-content">
+                                            {!sent && showAvatar && (
+                                                <span className="sender-name">{recipientName}</span>
                                             )}
-                                        </span>
+                                            <div className="message-bubble-wrapper">
+                                                <div className={`message-bubble ${sent ? 'sent' : 'received'} ${msg.type}`}>
+                                                    {msg.type === 'image' ? (
+                                                        <img src={msg.content} alt="Attachment" className="message-image" />
+                                                    ) : (
+                                                        <span className="message-text">{msg.content}</span>
+                                                    )}
+                                                    <div className="message-meta">
+                                                        <span className="message-time">{formatTime(msg.createdAt)}</span>
+                                                        {sent && (
+                                                            <span className="message-status">
+                                                                {msg.status === 'sending' ? (
+                                                                    <span className="status-icon sending">🕒</span>
+                                                                ) : msg.status === 'failed' ? (
+                                                                    <span className="status-icon failed">⚠️</span>
+                                                                ) : (
+                                                                    <span className="status-icon sent">✓</span>
+                                                                )}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })
+                                );
+                            })}
+                            <div ref={messagesEndRef} />
+                        </div>
                     )}
-                    <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input Area */}
                 {isBlocked ? (
-                    <div className="chat-blocked-notice">
-                        You have blocked this user. Unblock to send messages.
+                    <div className="blocked-notice">
+                        <div className="blocked-icon">🚫</div>
+                        <div className="blocked-text">
+                            <strong>Conversation Blocked</strong>
+                            <p>You have blocked this user. Unblock to send messages.</p>
+                        </div>
+                        {isExpert && (
+                            <button className="unblock-btn" onClick={handleBlockToggle}>
+                                Unblock
+                            </button>
+                        )}
                     </div>
                 ) : (
-                    <form className="chat-input-area" onSubmit={handleSend}>
-                        <button type="button" className="attach-btn" title="Attach file (Coming soon)">
+                    <form className="messenger-input-area" onSubmit={handleSend}>
+                        <button type="button" className="input-action-btn" title="Attach file">
                             <FiPaperclip />
                         </button>
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            placeholder="Type a message..."
-                            value={newMessage}
-                            onChange={handleTyping}
-                        />
+                        <div className="input-wrapper">
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                placeholder="Type a message..."
+                                value={newMessage}
+                                onChange={handleTypingChange}
+                                autoComplete="off"
+                            />
+                        </div>
                         <button type="submit" className="send-btn" disabled={!newMessage.trim()}>
-                            <FiSend style={{ color: '#936AAC' }} />
+                            <FiSend />
                         </button>
                     </form>
                 )}
