@@ -2,6 +2,170 @@
    SLEEK FLOATING CALL MODAL - REDESIGNED
    ======================================== */
 
+/* ========================================
+   CONFIRMATION MODE STYLES (Initial Modal)
+   ======================================== */
+.call-modal-overlay .call-modal-content.confirmation-mode {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Close Button */
+.close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  font-size: 1.25rem;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.close-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.1);
+  transform: rotate(90deg);
+}
+
+.close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Expert Details Text (Dark text for confirmation mode) */
+.call-modal-content.confirmation-mode .expert-display h2 {
+  color: #111827;
+  font-size: 1.75rem;
+}
+
+.call-modal-content.confirmation-mode .expert-display .specialization {
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.call-modal-content.confirmation-mode .name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Call Info Card */
+.call-info-card {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(147, 106, 172, 0.08) 0%, rgba(107, 76, 128, 0.08) 100%);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  border: 1px solid rgba(147, 106, 172, 0.15);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 0.95rem;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.info-row span:first-child {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.info-row .value {
+  color: #111827;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* Action Buttons */
+.action-buttons {
+  width: 100%;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.cancel-btn,
+.confirm-call-btn {
+  flex: 1;
+  padding: 1rem 1.5rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  min-height: 50px;
+}
+
+.cancel-btn {
+  background: rgba(0, 0, 0, 0.05);
+  color: #374151;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.confirm-call-btn {
+  background: linear-gradient(135deg, #936AAC 0%, #6B4C80 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(147, 106, 172, 0.4);
+}
+
+.confirm-call-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(147, 106, 172, 0.5);
+}
+
+.confirm-call-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.cancel-btn:disabled,
+.confirm-call-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Small Spinner */
+.spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
 /* Global Overlay - Professional Blurred Backdrop */
 .call-modal-overlay {
   position: fixed;
