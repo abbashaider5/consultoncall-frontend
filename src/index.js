@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import './index.css';
+import "./tailwind.css"; // tailwind (safe)
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

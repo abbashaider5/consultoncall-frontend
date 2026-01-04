@@ -11,16 +11,13 @@ import VerifiedBadge from '../components/VerifiedBadge';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-// import { useCallLogic } from '../hooks/useCallLogic';
 import './ExpertProfile.css';
 
-// Country to flag emoji mapping
 const getCountryFlag = (country) => {
-  const countryFlags = {
+  const flags = {
     'India': '🇮🇳',
     'United States': '🇺🇸',
     'USA': '🇺🇸',
-    'United Kingdom': '🇬🇧',
     'UK': '🇬🇧',
     'Canada': '🇨🇦',
     'Australia': '🇦🇺',
@@ -41,16 +38,16 @@ const getCountryFlag = (country) => {
     'Pakistan': '🇵🇰',
     'Bangladesh': '🇧🇩',
     'Sri Lanka': '🇱🇰',
-    'Nepal': '🇳🇵',
+    'Nepal': '🇳🇵'
   };
-  return countryFlags[country] || '🌍';
+  return flags[country] || '🌍';
 };
 
 const ExpertProfile = () => {
   const { usernameOrId } = useParams();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
-  const { isExpertOnline, getExpertStatus, activeCall } = useSocket();
+  const { isExpertOnline, activeCall } = useSocket();
   const [expert, setExpert] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
@@ -75,7 +72,6 @@ const ExpertProfile = () => {
     fetchExpert();
   }, [fetchExpert]);
 
-  // Check if expert is blocked
   useEffect(() => {
     const checkBlockStatus = async () => {
       if (!isAuthenticated || !expert) return;
@@ -89,7 +85,6 @@ const ExpertProfile = () => {
     checkBlockStatus();
   }, [isAuthenticated, expert]);
 
-  // Handoff: when call becomes active, close the outgoing (ringing) modal.
   useEffect(() => {
     if (activeCall && showCallModal) {
       setShowCallModal(false);
@@ -103,41 +98,34 @@ const ExpertProfile = () => {
         navigate('/login');
         return;
       }
-
       if (!user?._id) {
         toast.error('Please login again');
         navigate('/login');
         return;
       }
-
       if (!expert?._id) {
         toast.error('Expert not available');
         return;
       }
-
       if (user?.role === 'expert') {
         toast.error('Experts cannot make calls');
         return;
       }
-
       const isOnline = expert.isOnline || isExpertOnline(expert._id);
       if (!isOnline) {
         toast.error('Expert is currently offline');
         return;
       }
-
       if (expert.isBusy) {
         toast.error('Expert is currently busy on another call');
         return;
       }
-
       const minTokens = (expert.tokensPerMinute || 0) * 5;
       if ((user.tokens || 0) < minTokens) {
         toast.error(`Minimum ₹${minTokens} required. Please add money.`);
         navigate('/add-money');
         return;
       }
-
       setShowCallModal(true);
     } catch (e) {
       console.error('Call click failed:', e);
@@ -152,22 +140,18 @@ const ExpertProfile = () => {
         navigate('/login');
         return;
       }
-
       if (user?.role === 'expert') {
         toast.error('Experts cannot initiate chats');
         return;
       }
-
       if (isBlocked) {
         toast.error('You have blocked this user');
         return;
       }
-
       if (!expert?.user?._id) {
         toast.error('Expert not available');
         return;
       }
-
       await axios.post('/api/chats/get-or-create', {
         participantId: expert.user._id
       });
@@ -183,7 +167,6 @@ const ExpertProfile = () => {
       toast.error('Please login');
       return;
     }
-
     try {
       if (isBlocked) {
         await axios.post(`/api/users/unblock/${expert.user._id}`);
@@ -202,9 +185,7 @@ const ExpertProfile = () => {
   const handleShareProfile = async () => {
     const profileUrl = `${window.location.origin}/expert/${expert.user?.username || expert._id}`;
     const shareText = `Check out ${expert.user?.name}'s expert profile on ConsultOnCall!`;
-
     if (navigator.share) {
-      // Use Web Share API if available
       try {
         await navigator.share({
           title: `${expert.user?.name} - Expert Profile`,
@@ -215,31 +196,28 @@ const ExpertProfile = () => {
         console.log('Error sharing:', error);
       }
     } else {
-      // Fallback to clipboard
       try {
         await navigator.clipboard.writeText(`${shareText} ${profileUrl}`);
         toast.success('Profile link copied to clipboard!');
       } catch (error) {
-        // Fallback for older browsers
         const textArea = document.createElement('textarea');
         textArea.value = `${shareText} ${profileUrl}`;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
-        document.body.removeChild(textArea);
         toast.success('Profile link copied to clipboard!');
+        document.body.removeChild(textArea);
       }
     }
   };
-
-
 
   if (loading) {
     return (
       <div className="expert-profile-page">
         <div className="container">
           <div className="profile-content">
-            {/* Main Profile - Skeleton */}
             <div className="profile-main">
               <div className="profile-header-card card skeleton">
                 <div className="profile-top">
@@ -297,7 +275,6 @@ const ExpertProfile = () => {
               </div>
             </div>
 
-            {/* Sidebar - Skeleton */}
             <div className="profile-sidebar">
               <div className="call-card card skeleton">
                 <div className="call-card-main" style={{ textAlign: 'center', padding: '24px' }}>
@@ -345,7 +322,22 @@ const ExpertProfile = () => {
 
   const isOnline = expert.isOnline || isExpertOnline(expert._id);
   const isBusy = expert.isBusy || false;
+  const isAway = !isOnline && !isBusy;
   const canCall = isOnline && !isBusy;
+
+  const getStatusType = () => {
+    if (isBusy) return 'busy';
+    if (isOnline) return 'online';
+    if (isAway) return 'away';
+    return 'offline';
+  };
+
+  const getStatusMessage = () => {
+    if (isBusy) return 'Currently in another call';
+    if (isOnline) return 'Available for call now';
+    if (isAway) return 'Will be back soon';
+    return 'Not available right now';
+  };
 
   const getInitials = (name) => {
     return name
@@ -361,19 +353,15 @@ const ExpertProfile = () => {
     return IconComponent ? <IconComponent /> : null;
   };
 
-  /* Clean Professional Layout - NO BANNER */
   return (
     <div className="expert-profile-page">
       <div className="container">
         <div className="profile-grid-layout">
-          {/* Left Column: Main Content */}
           <div className="profile-left-col">
-            {/* Header Card */}
             <div className="profile-header-card">
               <div className="profile-header-content">
-                {/* Avatar Section - Left */}
                 <div className="profile-avatar-container">
-                  <div className={`profile-avatar-lg ${isOnline ? 'online' : ''}`}>
+                  <div className={`profile-avatar-lg ${getStatusType()}`}>
                     {expert.user?.avatar ? (
                       <img src={expert.user.avatar} alt={expert.user?.name} />
                     ) : (
@@ -382,65 +370,66 @@ const ExpertProfile = () => {
                   </div>
                 </div>
 
-                {/* Info Section - Right */}
                 <div className="profile-identity">
-                  <div className="name-verification-row">
-                    <h1>{expert.user?.name}</h1>
-                    {expert.isVerified && <VerifiedBadge size="medium" />}
-                    {expert.linkedinVerified && <FaLinkedin className="linkedin-icon" title="LinkedIn Verified" />}
-                  </div>
-                  
-                  <div className="profile-location-row">
-                    <span className="location-text">
-                      {expert.user?.country && <>{getCountryFlag(expert.user.country)} {expert.user.country}</>}
-                    </span>
-                    {expert.user?._id && (
-                      <span
-                        className="status-badge"
-                        style={{ 
-                          color: getExpertStatus(expert.user._id).color,
-                          marginLeft: '8px',
-                          fontSize: '13px',
-                          fontWeight: '600'
-                        }}
-                      >
-                        • {getExpertStatus(expert.user._id).text}
-                      </span>
-                    )}
+                  <div className="identity-header">
+                    <div className="name-verification-row">
+                      <h1>{expert.user?.name}</h1>
+                      <div className="badges-row">
+                        {expert.isVerified && <VerifiedBadge size="medium" />}
+                        {expert.linkedinVerified && <FaLinkedin className="linkedin-icon" title="LinkedIn Verified" />}
+                      </div>
+                    </div>
                   </div>
 
-                  <p className="profile-headline">{expert.title}</p>
-                  
-                  {/* Compact Stats Row */}
-                  <div className="profile-stats-row">
-                    <div className="stat-mini">
-                      <FiUsers className="stat-icon" />
-                      <span className="stat-number">{expert.totalCalls || 0}</span>
+                  <div className="identity-body">
+                    <div className="profile-location-row">
+                      <div className="location-group">
+                        {expert.user?.country && (
+                          <>
+                            <span className="location-text">
+                              {getCountryFlag(expert.user.country)} {expert.user.country}
+                            </span>
+                            <span className="location-separator">·</span>
+                          </>
+                        )}
+                        <span className={`status-pill status-${getStatusType().toLowerCase()}`}>
+                          <span className="status-dot"></span>
+                          <span className="stat-icon-expert">{getStatusType()}</span>
+                        </span>
+                      </div>
                     </div>
-                    <div className="stat-mini">
-                      <FaStar className="stat-icon star" />
-                      <span className="stat-number">{expert.rating?.toFixed(1) || '0.0'}</span>
+
+                    <p className="profile-headline">{expert.title}</p>
+
+                    <div className="profile-stats-horizontal">
+                      <div className="stat-row">
+                        <FiUsers className="stat-icon-expert" />
+                        <span className="stat-number">{expert.totalCalls || 0}</span>
+                        <span className="stat-label">Sessions</span>
+                      </div>
+                      <div className="stat-row">
+                        <FaStar className="stat-icon-expert star" />
+                        <span className="stat-number">{expert.rating?.toFixed(1) || '0.0'}</span>
+                        <span className="stat-label">Rating</span>
+                      </div>
+                      <div className="stat-row">
+                        <FiClock className="stat-icon-expert" />
+                        <span className="stat-number">{expert.experience || 0}</span>
+                        <span className="stat-label">Years Experience</span>
+                      </div>
                     </div>
-                    <div className="stat-mini">
-                      <FiClock className="stat-icon" />
-                      <span className="stat-number">{expert.experience || 0}y</span>
-                    </div>
-                  </div>
-                  
-                  <div className="profile-meta-info">
-                     <span className="join-date">Joined {new Date(expert.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* About Section */}
             <div className="profile-section card">
               <h2>About</h2>
-              <p className="bio-text">{expert.bio}</p>
+              <p className="bio-text">
+                {expert.bio || 'No bio information available.'}
+              </p>
             </div>
 
-            {/* Skills & Categories */}
             <div className="profile-section card">
               <h2>Expertise</h2>
               <div className="categories-cloud">
@@ -460,7 +449,6 @@ const ExpertProfile = () => {
               )}
             </div>
 
-            {/* Reviews */}
             <div className="profile-section card">
               <h2>Reviews ({expert.reviews?.length || 0})</h2>
               <div className="reviews-list">
@@ -495,57 +483,60 @@ const ExpertProfile = () => {
             </div>
           </div>
 
-          {/* Right Column: Sidebar (Sticky) */}
           <div className="profile-right-col">
-            {/* Consultation Rate Card */}
             <div className="rate-card card sticky-sidebar">
               <h3>Consultation Rate</h3>
               <div className="rate-price">
                 <BiRupee />{expert.tokensPerMinute} <span className="period">/ min</span>
               </div>
-              
+
               <div className="sidebar-actions">
                 <button
                   className={`action-btn-primary ${!canCall ? 'disabled' : ''}`}
                   onClick={handleCallClick}
                   disabled={!canCall}
+                  title={getStatusMessage()}
                 >
                   <FiPhone /> {isBusy ? 'Busy' : 'Connect Now'}
                 </button>
                 <button
                   className="action-btn-secondary"
                   onClick={handleChatClick}
+                  title="Chat with expert"
                 >
-                  <FiMessageSquare /> Free Chat
+                  <FiMessageSquare /> Chat
                 </button>
               </div>
 
+              <div className="status-message">
+                {getStatusMessage()}
+              </div>
+
               <div className="rate-features">
-                <div className="feature-item"><FiPhone /> Voice/Video Call</div>
-                <div className="feature-item"><FiMessageSquare /> Chat Support</div>
+                <div className="feature-item"><FiPhone /> Voice Call</div>
+                <div className="feature-item"><FiMessageSquare /> Free Chat Support</div>
               </div>
             </div>
 
-            {/* Statistics Card */}
             <div className="stats-card card">
               <h3>Expert Statistics</h3>
               <div className="profile-stats-grid">
                 <div className="p-stat-item">
-                  <div className="p-stat-icon"><FiUsers /></div>
+                  <div className="p-stat-icon-expert"><FiUsers /></div>
                   <div className="p-stat-info">
                     <span className="p-stat-value">{expert.totalCalls || 0}</span>
                     <span className="p-stat-label">Consultations</span>
                   </div>
                 </div>
                 <div className="p-stat-item">
-                  <div className="p-stat-icon star"><FaStar /></div>
+                  <div className="p-stat-icon-expert star"><FaStar /></div>
                   <div className="p-stat-info">
                     <span className="p-stat-value">{expert.rating?.toFixed(1) || '0.0'}</span>
                     <span className="p-stat-label">Rating</span>
                   </div>
                 </div>
                 <div className="p-stat-item">
-                  <div className="p-stat-icon"><FiClock /></div>
+                  <div className="p-stat-icon-expert"><FiClock /></div>
                   <div className="p-stat-info">
                     <span className="p-stat-value">{expert.experience || 0} Years</span>
                     <span className="p-stat-label">Experience</span>
@@ -554,16 +545,15 @@ const ExpertProfile = () => {
               </div>
             </div>
 
-            {/* Share Section */}
             <div className="share-section card">
               <h3>Share Profile</h3>
               <div className="share-buttons-col">
                 <button
                   className="share-btn whatsapp"
                   onClick={() => {
-                    const profileUrl = window.location.href;
-                    const shareText = `Check out ${expert.user?.name} on ConsultOnCall`;
-                    window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + profileUrl)}`, '_blank');
+                    const url = window.location.href;
+                    const text = `Check out ${expert.user?.name} on ConsultOnCall`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
                   }}
                 >
                   <FaShareAlt /> Share on WhatsApp
@@ -571,8 +561,8 @@ const ExpertProfile = () => {
                 <button
                   className="share-btn linkedin"
                   onClick={() => {
-                    const profileUrl = window.location.href;
-                    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(profileUrl)}`, '_blank');
+                    const url = window.location.href;
+                    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, '_blank');
                   }}
                 >
                   <FaLinkedin /> Share on LinkedIn
@@ -582,7 +572,7 @@ const ExpertProfile = () => {
                 </button>
               </div>
             </div>
-            
+
             {isAuthenticated && user?.role !== 'expert' && (
                <button className="block-btn" onClick={handleBlockToggle}>
                   {isBlocked ? 'Unblock Expert' : 'Block Expert'}
@@ -590,54 +580,54 @@ const ExpertProfile = () => {
             )}
           </div>
         </div>
-      </div>
 
+        {showCallModal && (
+          <CallModal
+            expert={expert}
+            onClose={() => setShowCallModal(false)}
+          />
+        )}
 
-      {showCallModal && (
-        <CallModal
-          expert={expert}
-          onClose={() => setShowCallModal(false)}
-        />
-      )}
+        {showChat && (
+          <ChatWindow
+            isOpen={showChat}
+            onClose={() => setShowChat(false)}
+            recipientId={expert.user?._id || expert._id || expert.id}
+            recipientName={expert.user?.name || 'Expert'}
+            recipientAvatar={expert.user?.avatar || null}
+          />
+        )}
 
-      {showChat && (
-        <ChatWindow
-          isOpen={showChat}
-          onClose={() => setShowChat(false)}
-          recipientId={expert.user?._id || expert._id || expert.id}
-          recipientName={expert.user?.name || 'Expert'}
-          recipientAvatar={expert.user?.avatar || null}
-        />
-      )}
-
-      {/* Mobile Sticky Footer - Rate | Free Chat | Call Now */}
-      <div className="mobile-sticky-footer">
-        <div className="footer-content">
-          <div className="footer-rate">
-            <span className="footer-rate-label">Rate</span>
-            <div className="footer-rate-value">
-              <BiRupee />{expert.tokensPerMinute}<span className="period">/min</span>
+        <div className="mobile-sticky-footer">
+          <div className="footer-content">
+            <div className="footer-rate">
+              <span className="footer-rate-label">Rate</span>
+              <div className="footer-rate-value">
+                <BiRupee />{expert.tokensPerMinute}<span className="period">/min</span>
+              </div>
             </div>
+            
+
+            <button
+              className="footer-chat-btn"
+              onClick={handleChatClick}
+            >
+              <FiMessageSquare /> Free Chat
+            </button>
+
+            <button
+              className={`footer-call-btn ${!canCall ? 'disabled' : ''}`}
+              onClick={handleCallClick}
+              disabled={!canCall}
+              title={getStatusMessage()}
+            >
+              <FiPhone /> {isBusy ? 'Busy' : 'Connect Now'}
+            </button>
           </div>
-
-          <button
-            className="footer-chat-btn"
-            onClick={handleChatClick}
-          >
-            <FiMessageSquare /> Free Chat
-          </button>
-
-          <button
-            className={`footer-call-btn ${!canCall ? 'disabled' : ''}`}
-            onClick={handleCallClick}
-            disabled={!canCall}
-          >
-            <FiPhone /> {isBusy ? 'Busy' : 'Call Now'}
-          </button>
         </div>
       </div>
-    </div>
-  );
+      </div>
+    );
 };
 
 export default ExpertProfile;
