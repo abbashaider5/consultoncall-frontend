@@ -19,7 +19,7 @@ const ActiveCallModal = () => {
     socket
   } = useSocket();
 
-  const [callStatus, setCallStatus] = useState('connecting');
+  const [callStatus, setCallStatus] = useState('idle');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
@@ -662,8 +662,9 @@ const ActiveCallModal = () => {
         return 'Connected';
       case 'failed':
         return 'Call Failed';
+      case 'idle':
       default:
-        return 'Connecting...';
+        return '';
     }
   };
 
@@ -677,6 +678,7 @@ const ActiveCallModal = () => {
         return '#28a745';
       case 'failed':
         return '#dc3545';
+      case 'idle':
       default:
         return '#6c757d';
     }
@@ -790,6 +792,16 @@ const ActiveCallModal = () => {
       startTimer();
     }
   }, [activeCall, callStatus, startTimer]);
+
+  // HARD GUARD: Do NOT render modal without active call
+  if (!activeCall || !isVisible) {
+    return null;
+  }
+
+  // Only render for valid call states
+  if (!['ringing', 'accepted', 'connecting', 'connected'].includes(activeCall?.status)) {
+    return null;
+  }
 
   // Show loading state while fetching remote user
   if (!remoteUser) {
