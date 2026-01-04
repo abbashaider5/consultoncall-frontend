@@ -92,7 +92,8 @@ const Chat = () => {
     if (!newMessage || !selectedChat) return;
     if (newMessage.chatId && newMessage.chatId === selectedChat._id && newMessage.message) {
       // Play sound for incoming messages
-      if (newMessage.message.sender !== currentUserId) {
+      const isOwnMessage = String(newMessage.message.sender) === String(currentUserId);
+      if (!isOwnMessage) {
         playMessageSound();
       }
       
@@ -424,9 +425,7 @@ const Chat = () => {
                     alt={getOtherParticipant(selectedChat)?.name}
                     className="chat-header-avatar"
                   />
-                  {getOtherParticipant(selectedChat)?.role === 'expert' && (
-                    <div className={`status-indicator status-${getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.status || 'offline'}`}></div>
-                  )}
+                  <div className={`status-indicator status-${getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.status || 'offline'}`}></div>
                 </div>
                 <div className="chat-header-info">
                   <div className="name-row">
@@ -437,9 +436,7 @@ const Chat = () => {
                   </div>
                   <span className="status-label">
                     {isTyping ? 'Typing...' : 
-                     getOtherParticipant(selectedChat)?.role === 'expert'
-                      ? (getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.text || 'Offline')
-                      : 'User'
+                     (getExpertStatus?.(getOtherParticipant(selectedChat)?._id)?.text || 'Offline')
                     }
                   </span>
                 </div>
@@ -481,9 +478,11 @@ const Chat = () => {
                   </div>
                 ) : (
                   messages.map((msg, index) => {
-                    const isOwn = msg.sender === currentUserId;
-                    const prevMsg = index > 0 ? messages[index - 1] : null;
+                    // Convert both to string for comparison to avoid type mismatch
+                    const isOwn = String(msg.sender) === String(currentUserId);
+                    const prevMsg = index > 0 ? messages[index -1] : null;
                     const showDateSeparator = shouldShowDateSeparator(msg, prevMsg);
+                    const otherUser = getOtherParticipant(selectedChat);
 
                     return (
                       <div key={msg._id || index}>
@@ -495,18 +494,29 @@ const Chat = () => {
                         <div className={`message ${isOwn ? 'own' : 'other'}`}>
                           {!isOwn && (
                             <div className="message-avatar">
-                              {getOtherParticipant(selectedChat)?.avatar ? (
-                                <img src={getOtherParticipant(selectedChat)?.avatar} alt="" />
+                              {otherUser?.avatar ? (
+                                <img src={otherUser.avatar} alt="" />
                               ) : (
                                 <div className="avatar-placeholder-small">
-                                  {getOtherParticipant(selectedChat)?.name?.charAt(0)}
+                                  {otherUser?.name?.charAt(0)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {isOwn && (
+                            <div className="message-avatar">
+                              {user?.avatar ? (
+                                <img src={user.avatar} alt="" />
+                              ) : (
+                                <div className="avatar-placeholder-small">
+                                  {user?.name?.charAt(0)}
                                 </div>
                               )}
                             </div>
                           )}
                           <div className="message-content">
                             {!isOwn && (
-                              <span className="sender-name">{getOtherParticipant(selectedChat)?.name}</span>
+                              <span className="sender-name">{otherUser?.name}</span>
                             )}
                             <div className={`message-bubble ${isOwn ? 'sent' : 'received'}`}>
                               <p>{msg.content}</p>
