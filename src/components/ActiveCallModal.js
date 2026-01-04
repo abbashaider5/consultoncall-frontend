@@ -717,20 +717,6 @@ const ActiveCallModal = () => {
       }
     };
   }, [activeCall, setupPeerConnection, callStatus, handleEndCall, user?.role]);
-   
-  // Only set initial status from socket - WebRTC will override
-    if (activeCall.status === 'ringing' && callStatus !== 'ringing') {
-      setCallStatus('ringing');
-    } else if (activeCall.status === 'accepted' && callStatus !== 'connected') {
-      // WebRTC will set to 'connected' - keep as 'connecting' until ICE connects
-      setCallStatus('connecting');
-    }
-
-    // Start timer when call status changes to connected (from WebRTC)
-    if (callStatus === 'connected' && !timerRef.current) {
-      console.log('⏱️ Starting call timer - call is connected');
-      startTimer();
-    }
 
   // Handle WebRTC signaling events
   useEffect(() => {
@@ -786,10 +772,24 @@ const ActiveCallModal = () => {
     };
   }, [activeCall, callStatus, socket]);
 
-  // Only render once the call has been accepted (WebRTC/setup phase) or connected
-  if (!activeCall || !['ringing', 'accepted', 'connected'].includes(activeCall.status) || !isVisible || forceClose) {
-    return null;
-  }
+  // Only set initial status from socket - WebRTC will override
+  useEffect(() => {
+    if (!activeCall) return;
+
+    // Only set initial status from socket - WebRTC will override
+    if (activeCall.status === 'ringing' && callStatus !== 'ringing') {
+      setCallStatus('ringing');
+    } else if (activeCall.status === 'accepted' && callStatus !== 'connected') {
+      // WebRTC will set to 'connected' - keep as 'connecting' until ICE connects
+      setCallStatus('connecting');
+    }
+
+    // Start timer when call status changes to connected (from WebRTC)
+    if (callStatus === 'connected' && !timerRef.current) {
+      console.log('⏱️ Starting call timer - call is connected');
+      startTimer();
+    }
+  }, [activeCall, callStatus, startTimer]);
 
   // Show loading state while fetching remote user
   if (!remoteUser) {
