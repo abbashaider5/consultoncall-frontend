@@ -158,9 +158,11 @@ export const SocketProvider = ({ children }) => {
 
       if (reason === 'io server disconnect') {
         console.log('🔄 Server disconnected socket - will auto-reconnect');
+        console.log('🎯 IMPORTANT: activeCall state preserved - WebRTC continues independently');
         // Do NOT reset activeCall - let WebRTC continue
       } else {
         console.log('🔄 Client-side disconnect - will auto-reconnect');
+        console.log('🎯 IMPORTANT: activeCall state preserved - WebRTC continues independently');
       }
     });
 
@@ -349,23 +351,40 @@ export const SocketProvider = ({ children }) => {
 
     // WebRTC Signaling Events
     newSocket.on('webrtc_offer', (data) => {
-      console.log('📡 Received WebRTC offer:', data);
+      console.log('📡 Received WebRTC offer from server:', { 
+        callId: data.callId, 
+        offerType: data.offer?.type,
+        offerLength: data.offer?.sdp?.length 
+      });
       if (window.webrtcOfferHandler) {
         window.webrtcOfferHandler(data);
+      } else {
+        console.error('❌ No webrtcOfferHandler registered!');
       }
     });
 
     newSocket.on('webrtc_answer', (data) => {
-      console.log('📡 Received WebRTC answer:', data);
+      console.log('📡 Received WebRTC answer from server:', { 
+        callId: data.callId, 
+        answerType: data.answer?.type,
+        answerLength: data.answer?.sdp?.length 
+      });
       if (window.webrtcAnswerHandler) {
         window.webrtcAnswerHandler(data);
+      } else {
+        console.error('❌ No webrtcAnswerHandler registered!');
       }
     });
 
     newSocket.on('webrtc_ice', (data) => {
-      console.log('🧊 Received ICE candidate:', data);
+      console.log('🧊 Received ICE candidate from server:', { 
+        callId: data.callId, 
+        candidateType: data.candidate?.type 
+      });
       if (window.webrtcIceHandler) {
         window.webrtcIceHandler(data);
+      } else {
+        console.error('❌ No webrtcIceHandler registered!');
       }
     });
 
@@ -528,44 +547,84 @@ export const SocketProvider = ({ children }) => {
     socket.emit('call_connected', payload);
   }, [socket]);
 
-  const endCall = useCallback((data) => {
+  const endCall = useCallback(async (data) => {
     const payload = typeof data === 'string' ? { callId: data } : data;
-    if (!payload?.callId) return;
-
-    // Try to emit via socket, but don't fail if socket is disconnected
-    if (socket) {
-      socket.emit('end_call', payload);
-    } else {
-      console.warn('⚠️ Socket not available when ending call - call will be cleared locally');
+    if (!payload?.callId) {
+      console.warn('⚠️ endCall called without callId');
+      return;
     }
 
-    // Always clear local state - user explicitly ended the call
+    console.log('🔚 Ending call:', payload.callId);
+
+    // CRITICAL: Emit end_call via socket to broadcast to BOTH sides
+    if (socket && socket.connected) {
+      console.log('📡 Broadcasting call_ended to server');
+      socket.emit('end_call', payload);
+    } else {
+      console.warn('⚠️ Socket not connected - clearing local state only');
+    }
+
+    // Also update backend to finalize call
+    try {
+      const token = localStorage.getItem('token');
+      if (token && payload.callId) {
+        await axios.put(
+          `/api/calls/end/${payload.callId}`,
+          { initiatedBy: payload.initiatedBy || 'unknown' },
+          { headers: { 'x-auth-token': token } }
+        );
+        console.log('✅ Backend call end confirmed');
+      }
+    } catch (error) {
+      console.error('❌ Backend end call error:', error);
+    }
+
+    // Always clear local state immediately
+    console.log('🧹 Clearing activeCall and incomingCall state');
     setActiveCall(null);
     setIncomingCall(null);
     stopIncomingCallSound();
   }, [socket, stopIncomingCallSound]);
 
   const sendOffer = useCallback((data) => {
-    if (socket) {
+    if (socket && socket.connected) {
+      console.log('📤 Emitting webrtc_offer to server:', { callId: data.callId, offerLength: data.offer.sdp.length });
       socket.emit('webrtc_offer', data);
+      console.log('✅ webrtc_offer emitted successfully');
     } else {
-      console.warn('⚠️ Socket not available for webrtc_offer');
+      console.error('❌ Cannot send offer - socket not connected:', { 
+        socketExists: !!socket, 
+        isConnected: socket?.connected 
+      });
     }
   }, [socket]);
 
   const sendAnswer = useCallback((data) => {
-    if (socket) {
+    if (socket && socket.connected) {
+      console.log('📤 Emitting webrtc_answer to server:', { callId: data.callId, answerLength: data.answer.sdp.length });
       socket.emit('webrtc_answer', data);
+      console.log('✅ webrtc_answer emitted successfully');
     } else {
-      console.warn('⚠️ Socket not available for webrtc_answer');
+      console.error('❌ Cannot send answer - socket not connected:', { 
+        socketExists: !!socket, 
+        isConnected: socket?.connected 
+      });
     }
   }, [socket]);
 
   const sendIceCandidate = useCallback((data) => {
-    if (socket) {
+    if (socket && socket.connected) {
+      console.log('🧊 Emitting webrtc_ice to server:', { 
+        callId: data.callId, 
+        candidateType: data.candidate.type 
+      });
       socket.emit('webrtc_ice', data);
+      // Don't log success for every ICE candidate - too noisy
     } else {
-      console.warn('⚠️ Socket not available for webrtc_ice');
+      console.error('❌ Cannot send ICE candidate - socket not connected:', { 
+        socketExists: !!socket, 
+        isConnected: socket?.connected 
+      });
     }
   }, [socket]);
 

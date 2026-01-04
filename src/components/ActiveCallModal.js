@@ -27,6 +27,7 @@ const ActiveCallModal = () => {
   const [isVisible, setIsVisible] = useState(true);
   const [forceClose, setForceClose] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const connectionTimeoutRef = useRef(null);
 
   // Theme color constant
   const THEME_COLOR = '#936AAC';
@@ -45,6 +46,11 @@ const ActiveCallModal = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
     }
     
     if (localStreamRef.current) {
@@ -249,10 +255,13 @@ const ActiveCallModal = () => {
 
   const setupPeerConnection = useCallback(async () => {
     if (!activeCall || peerConnectionRef.current) {
+      console.warn('⚠️ Skipping WebRTC setup - activeCall:', !!activeCall, 'pc exists:', !!peerConnectionRef.current);
       return;
     }
 
     console.log('🔧 Setting up WebRTC connection for active call...');
+    console.log('🔍 Active call:', JSON.stringify(activeCall, null, 2));
+    console.log('🔍 User role:', user?.role);
 
     const config = {
       iceServers: [
@@ -264,9 +273,12 @@ const ActiveCallModal = () => {
 
     const pc = new RTCPeerConnection(config);
     peerConnectionRef.current = pc;
+    
+    console.log('✅ RTCPeerConnection created with config:', JSON.stringify(config, null, 2));
 
     // Add local stream
     try {
+      console.log('🎤 Requesting microphone access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -276,8 +288,10 @@ const ActiveCallModal = () => {
           channelCount: 1
         }
       });
+      console.log('✅ Microphone access granted. Stream:', stream.id);
       localStreamRef.current = stream;
       stream.getTracks().forEach(track => {
+        console.log('📤 Adding track to peer connection:', track.kind, track.id);
         pc.addTrack(track, stream);
       });
       
@@ -343,8 +357,21 @@ const ActiveCallModal = () => {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log('🧊 ICE candidate generated:', {
+          type: event.candidate.type,
+          protocol: event.candidate.protocol,
+          address: event.candidate.address,
+          port: event.candidate.port
+        });
         sendIceCandidate({ callId: activeCall.callId, candidate: event.candidate });
+      } else {
+        console.log('🧊 ICE gathering complete');
       }
+    };
+    
+    // Log ICE gathering state changes
+    pc.onicegatheringstatechange = () => {
+      console.log('🧊 ICE gathering state changed:', pc.iceGatheringState);
     };
 
     // Handle ICE connection state - PRIMARY AUTHORITY for call state
@@ -354,6 +381,13 @@ const ActiveCallModal = () => {
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         console.log('✅ ICE connection established - WebRTC peer connection successful');
         console.log('🎯 CRITICAL: Setting call status to CONNECTED based on ICE state');
+        
+        // Clear connection timeout
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
+        
         setCallStatus('connected');
         
         // Mark as connected in backend (starts billing) - only once
@@ -368,9 +402,18 @@ const ActiveCallModal = () => {
         console.error('❌ ICE connection failed - ending call');
         toast.error('Connection failed. Please try again.');
         handleEndCall();
-      } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'closed') {
-        console.warn('⚠️ ICE disconnected/closed - ending call gracefully');
-        // ICE disconnected/closed means call should end
+      } else if (pc.iceConnectionState === 'disconnected') {
+        console.warn('⚠️ ICE disconnected - waiting for recovery...');
+        // Wait 3 seconds for recovery
+        setTimeout(() => {
+          if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+            console.error('❌ ICE did not recover - ending call');
+            toast.error('Connection lost');
+            handleEndCall();
+          }
+        }, 3000);
+      } else if (pc.iceConnectionState === 'closed') {
+        console.warn('⚠️ ICE connection closed - ending call');
         handleEndCall();
       }
     };
@@ -403,39 +446,68 @@ const ActiveCallModal = () => {
 
     // Create and send offer (caller initiates)
     if (user?.role === 'user') {
+      console.log('👤 User is caller - creating WebRTC offer...');
       try {
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
           offerToReceiveVideo: false
         });
+        console.log('📝 Offer created:', {
+          type: offer.type,
+          sdpLength: offer.sdp.length
+        });
         await pc.setLocalDescription(offer);
+        console.log('✅ Local description set (offer)');
         sendOffer({ callId: activeCall.callId, offer });
-        console.log('📤 Sent WebRTC offer');
+        console.log('📤 Sent WebRTC offer to server');
       } catch (error) {
         console.error('❌ Create offer error:', error);
         toast.error('Failed to setup call');
         setCallStatus('failed');
       }
+    } else {
+      console.log('👨‍⚕️ Expert is callee - waiting for WebRTC offer...');
     }
   }, [activeCall, user?.role, sendOffer, sendIceCandidate, markCallConnected, handleEndCall]);
 
   const handleWebRTCOffer = useCallback(async (data) => {
-    if (!activeCall || data.callId !== activeCall.callId) return;
+    if (!activeCall || data.callId !== activeCall.callId) {
+      console.warn('⚠️ Ignoring WebRTC offer - call mismatch or no active call');
+      return;
+    }
 
-    console.log('📥 Received WebRTC offer');
+    console.log('📥 Received WebRTC offer for call:', data.callId);
+    console.log('📝 Offer details:', {
+      type: data.offer.type,
+      sdpLength: data.offer.sdp.length
+    });
+    
     try {
       if (!peerConnectionRef.current) {
-        console.error('❌ Peer connection not established');
+        console.error('❌ Peer connection not established - cannot handle offer');
         return;
       }
+      
+      console.log('🔧 Setting remote description (offer)...');
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.offer));
+      console.log('✅ Remote description set (offer)');
+      
+      console.log('📝 Creating answer...');
       const answer = await peerConnectionRef.current.createAnswer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: false
       });
+      console.log('📝 Answer created:', {
+        type: answer.type,
+        sdpLength: answer.sdp.length
+      });
+      
+      console.log('🔧 Setting local description (answer)...');
       await peerConnectionRef.current.setLocalDescription(answer);
+      console.log('✅ Local description set (answer)');
+      
       sendAnswer({ callId: activeCall.callId, answer });
-      console.log('📤 Sent WebRTC answer');
+      console.log('📤 Sent WebRTC answer to server');
     } catch (error) {
       console.error('❌ Handle offer error:', error);
       toast.error('Failed to accept call');
@@ -443,16 +515,27 @@ const ActiveCallModal = () => {
   }, [activeCall, sendAnswer]);
 
   const handleWebRTCAnswer = useCallback(async (data) => {
-    if (!activeCall || data.callId !== activeCall.callId) return;
+    if (!activeCall || data.callId !== activeCall.callId) {
+      console.warn('⚠️ Ignoring WebRTC answer - call mismatch or no active call');
+      return;
+    }
 
-    console.log('📥 Received WebRTC answer');
+    console.log('📥 Received WebRTC answer for call:', data.callId);
+    console.log('📝 Answer details:', {
+      type: data.answer.type,
+      sdpLength: data.answer.sdp.length
+    });
+    
     try {
       if (!peerConnectionRef.current) {
-        console.error('❌ Peer connection not established');
+        console.error('❌ Peer connection not established - cannot handle answer');
         return;
       }
+      
+      console.log('🔧 Setting remote description (answer)...');
       await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-      console.log('✅ WebRTC handshake complete');
+      console.log('✅ Remote description set (answer)');
+      console.log('✅ WebRTC handshake complete - waiting for ICE connection...');
     } catch (error) {
       console.error('❌ Handle answer error:', error);
       toast.error('Connection setup failed');
@@ -460,15 +543,28 @@ const ActiveCallModal = () => {
   }, [activeCall]);
 
   const handleWebRTCIce = useCallback(async (data) => {
-    if (!activeCall || data.callId !== activeCall.callId) return;
+    if (!activeCall || data.callId !== activeCall.callId) {
+      console.warn('⚠️ Ignoring ICE candidate - call mismatch or no active call');
+      return;
+    }
 
+    console.log('🧊 Received ICE candidate for call:', data.callId);
+    if (data.candidate) {
+      console.log('🧊 Candidate details:', {
+        type: data.candidate.type,
+        protocol: data.candidate.protocol,
+        address: data.candidate.address
+      });
+    }
+    
     try {
       if (peerConnectionRef.current && data.candidate) {
         await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-        console.log('🧊 ICE candidate added');
+        console.log('✅ ICE candidate added successfully');
       }
     } catch (error) {
       console.error('❌ Handle ICE candidate error:', error);
+      // Don't show toast for ICE errors - they're common and not critical
     }
   }, [activeCall]);
 
@@ -591,16 +687,38 @@ const ActiveCallModal = () => {
     // Only setup WebRTC when call is accepted
     if (activeCall && activeCall.status === 'accepted' && !peerConnectionRef.current) {
       console.log('🚀 Initiating WebRTC setup for call:', activeCall.callId);
+      console.log('🔍 Current user role:', user?.role);
+      console.log('🔍 Active call details:', JSON.stringify(activeCall, null, 2));
       setCallStatus('connecting');
-      setupPeerConnection();
+      
+      // Add small delay to ensure socket signaling is ready
+      setTimeout(() => {
+        console.log('🚀 Starting WebRTC setup after delay...');
+        setupPeerConnection();
+      }, 100);
+      
+      // SAFETY: Set 30-second timeout for connection
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (callStatus !== 'connected' && peerConnectionRef.current) {
+          console.error('❌ Connection timeout - call did not connect in 30 seconds');
+          console.error('📊 Final ICE state:', peerConnectionRef.current?.iceConnectionState);
+          console.error('📊 Final connection state:', peerConnectionRef.current?.connectionState);
+          console.error('📊 Final gathering state:', peerConnectionRef.current?.iceGatheringState);
+          toast.error('Connection timeout. Please try again.');
+          handleEndCall();
+        }
+      }, 30000);
     }
-  }, [activeCall, setupPeerConnection]);
-
-  // Update status based on activeCall status (but WebRTC is final authority)
-  useEffect(() => {
-    if (!activeCall) return;
-
-    // Only set initial status from socket - WebRTC will override
+    
+    return () => {
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
+    };
+  }, [activeCall, setupPeerConnection, callStatus, handleEndCall, user?.role]);
+   
+  // Only set initial status from socket - WebRTC will override
     if (activeCall.status === 'ringing' && callStatus !== 'ringing') {
       setCallStatus('ringing');
     } else if (activeCall.status === 'accepted' && callStatus !== 'connected') {
@@ -613,7 +731,6 @@ const ActiveCallModal = () => {
       console.log('⏱️ Starting call timer - call is connected');
       startTimer();
     }
-  }, [activeCall, callStatus, startTimer]);
 
   // Handle WebRTC signaling events
   useEffect(() => {
