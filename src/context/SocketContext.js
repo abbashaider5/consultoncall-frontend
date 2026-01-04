@@ -147,16 +147,20 @@ export const SocketProvider = ({ children }) => {
       console.log('🔍 Active call exists:', !!activeCall);
       console.log('🔍 Call status:', activeCall?.status);
 
-      // IMPORTANT: Do NOT automatically end call on socket disconnect
+      // CRITICAL: Do NOT automatically clear activeCall on socket disconnect
       // WebRTC peer connection is independent of socket transport
-      // Only end call if WebRTC is explicitly closed/failed or user initiates end
       // Socket will auto-reconnect and WebRTC will continue
+      // Only clear activeCall if:
+      // 1. Explicit call_ended event received from server
+      // 2. User explicitly ends call
+      // 3. WebRTC explicitly fails
       setIsConnected(false);
 
       if (reason === 'io server disconnect') {
-        console.log('🔄 Server disconnected socket, reconnecting...');
+        console.log('🔄 Server disconnected socket - will auto-reconnect');
         // Do NOT reset activeCall - let WebRTC continue
-        newSocket.connect();
+      } else {
+        console.log('🔄 Client-side disconnect - will auto-reconnect');
       }
     });
 
@@ -165,9 +169,26 @@ export const SocketProvider = ({ children }) => {
       console.log(`🔄 Reconnection attempt ${attemptNumber}/10`);
     });
 
-    newSocket.on('reconnect', (attemptNumber) => {
-      console.log(`✅ Reconnected after ${attemptNumber} attempts`);
+    newSocket.on('reconnect', async (attemptNumber) => {
+      console.log(`✅ Socket reconnected after ${attemptNumber} attempts`);
       setConnectionError(null);
+
+      // After reconnect, restore state
+      const userId = isExpert ? (expert?._id || expert?.id) : (user?._id || user?.id);
+      const userType = isExpert ? 'expert' : 'user';
+
+      if (userId) {
+        console.log(`📝 Re-registering as ${userType}:`, userId);
+        newSocket.emit('register', { userId, userType });
+      }
+
+      // If there's an active call, restore the call state
+      if (activeCall) {
+        console.log('🔄 Active call exists after reconnect:', activeCall.callId);
+        console.log('🔄 WebRTC peer connection should still be active');
+        // Socket server will handle re-joining call room via registration
+        // WebRTC peer connection is independent and continues working
+      }
     });
 
     newSocket.on('reconnect_failed', () => {
@@ -501,39 +522,52 @@ export const SocketProvider = ({ children }) => {
   }, [socket, isConnected, stopIncomingCallSound]);
 
   const markCallConnected = useCallback((data) => {
-    if (!socket || !isConnected) return;
+    if (!socket) return;
     const payload = typeof data === 'string' ? { callId: data } : data;
     if (!payload?.callId) return;
     socket.emit('call_connected', payload);
-  }, [socket, isConnected]);
+  }, [socket]);
 
   const endCall = useCallback((data) => {
-    if (!socket || !isConnected) return;
     const payload = typeof data === 'string' ? { callId: data } : data;
     if (!payload?.callId) return;
-    socket.emit('end_call', payload);
+
+    // Try to emit via socket, but don't fail if socket is disconnected
+    if (socket) {
+      socket.emit('end_call', payload);
+    } else {
+      console.warn('⚠️ Socket not available when ending call - call will be cleared locally');
+    }
+
+    // Always clear local state - user explicitly ended the call
     setActiveCall(null);
     setIncomingCall(null);
     stopIncomingCallSound();
-  }, [socket, isConnected, stopIncomingCallSound]);
+  }, [socket, stopIncomingCallSound]);
 
   const sendOffer = useCallback((data) => {
-    if (socket && isConnected) {
+    if (socket) {
       socket.emit('webrtc_offer', data);
+    } else {
+      console.warn('⚠️ Socket not available for webrtc_offer');
     }
-  }, [socket, isConnected]);
+  }, [socket]);
 
   const sendAnswer = useCallback((data) => {
-    if (socket && isConnected) {
+    if (socket) {
       socket.emit('webrtc_answer', data);
+    } else {
+      console.warn('⚠️ Socket not available for webrtc_answer');
     }
-  }, [socket, isConnected]);
+  }, [socket]);
 
   const sendIceCandidate = useCallback((data) => {
-    if (socket && isConnected) {
+    if (socket) {
       socket.emit('webrtc_ice', data);
+    } else {
+      console.warn('⚠️ Socket not available for webrtc_ice');
     }
-  }, [socket, isConnected]);
+  }, [socket]);
 
 
   // Chat functions
