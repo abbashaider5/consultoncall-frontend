@@ -428,12 +428,12 @@ const ExpertProfile = () => {
                         <FiUsers className="stat-icon-expert" />
                         <span className="stat-number">{expert.totalCalls || 0}</span>
                         <span className="stat-label">Sessions</span>
-                      </div>
+                      </div> |
                       <div className="stat-row">
                         <FaStar className="stat-icon-expert star" />
                         <span className="stat-number">{expert.rating?.toFixed(1) || '0.0'}</span>
                         <span className="stat-label">Rating</span>
-                      </div>
+                      </div> |
                       <div className="stat-row">
                         <FiClock className="stat-icon-expert" />
                         <span className="stat-number">{expert.experience || 0}</span>
