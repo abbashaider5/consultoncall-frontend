@@ -347,15 +347,17 @@ const ActiveCallModal = () => {
       }
     };
 
-    // Handle ICE connection state
+  // Handle ICE connection state
     pc.oniceconnectionstatechange = () => {
       console.log('🧊 ICE connection state:', pc.iceConnectionState);
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-        console.log('✅ ICE connection established');
+        console.log('✅ ICE connection established - WebRTC peer connection successful');
       } else if (pc.iceConnectionState === 'failed') {
-        console.error('❌ ICE connection failed');
+        console.error('❌ ICE connection failed - ending call');
         toast.error('Connection failed. Please try again.');
         handleEndCall();
+      } else if (pc.iceConnectionState === 'disconnected') {
+        console.warn('⚠️ ICE disconnected - waiting for reconnect...');
       }
     };
 
@@ -363,7 +365,7 @@ const ActiveCallModal = () => {
     pc.onconnectionstatechange = () => {
       console.log('🔗 WebRTC connection state:', pc.connectionState);
       if (pc.connectionState === 'connected') {
-        console.log('✅ WebRTC connection established - updating call status');
+        console.log('✅ WebRTC connection established - updating call status to CONNECTED');
         setCallStatus('connected');
         // Mark as connected in backend (starts billing)
         if (!billingStartedRef.current) {
@@ -376,8 +378,11 @@ const ActiveCallModal = () => {
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
         console.error('❌ WebRTC connection failed/disconnected');
         if (pc.connectionState === 'failed') {
+          console.error('WebRTC failed - ending call');
           toast.error('Connection failed. Please try again.');
           handleEndCall();
+        } else {
+          console.warn('WebRTC disconnected but not failed - may reconnect...');
         }
       }
     };
@@ -611,14 +616,28 @@ const ActiveCallModal = () => {
     };
   }, [activeCall, handleWebRTCOffer, handleWebRTCAnswer, handleWebRTCIce]);
 
-  // Call Safety: Auto-end call on socket disconnect
+  // Call Safety: Do NOT auto-end call on socket disconnect
+  // Socket disconnect is temporary; WebRTC peer connection is independent
+  // Only end call if WebRTC explicitly fails or user ends call
   useEffect(() => {
     if (!activeCall) return;
 
-    const handleSocketDisconnect = () => {
-      console.log('Socket disconnected - ending call for safety');
-      if (activeCall && callStatus === 'connected') {
-        handleEndCall();
+    const handleSocketDisconnect = (reason) => {
+      console.log('🔌 Socket disconnected:', reason);
+      console.log('🔍 Call status:', callStatus);
+      console.log('🔍 WebRTC connection state:', peerConnectionRef.current?.connectionState);
+      
+      // IMPORTANT: Do NOT automatically end call on socket disconnect
+      // WebRTC peer connection is independent of socket transport
+      // Socket will auto-reconnect and WebRTC will continue
+      // Only end call if:
+      // 1. WebRTC peer connection is failed
+      // 2. User explicitly ends call
+      // 3. Explicit call_ended event received from server
+      
+      if (reason === 'io server disconnect') {
+        console.log('🔄 Server-initiated disconnect - socket will reconnect');
+        // Do NOT end call - let socket reconnect
       }
     };
 
@@ -627,7 +646,7 @@ const ActiveCallModal = () => {
     return () => {
       socket?.off('disconnect', handleSocketDisconnect);
     };
-  }, [activeCall, callStatus, socket, handleEndCall]);
+  }, [activeCall, callStatus, socket]);
 
   // Only render once the call has been accepted (WebRTC/setup phase) or connected
   if (!activeCall || !['ringing', 'accepted', 'connected'].includes(activeCall.status) || !isVisible || forceClose) {

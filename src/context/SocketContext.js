@@ -100,8 +100,9 @@ export const SocketProvider = ({ children }) => {
     console.log('🎭 User type:', isExpert ? 'expert' : 'user');
 
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'], // Try websocket first for better performance
-      reconnectionAttempts: 20,
+      transports: ['websocket'], // Force WebSocket only - NO polling for better stability
+      reconnection: true,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 45000,
@@ -143,10 +144,18 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on('disconnect', (reason) => {
       console.log('🔌 Socket disconnected:', reason);
+      console.log('🔍 Active call exists:', !!activeCall);
+      console.log('🔍 Call status:', activeCall?.status);
+
+      // IMPORTANT: Do NOT automatically end call on socket disconnect
+      // WebRTC peer connection is independent of socket transport
+      // Only end call if WebRTC is explicitly closed/failed or user initiates end
+      // Socket will auto-reconnect and WebRTC will continue
       setIsConnected(false);
 
       if (reason === 'io server disconnect') {
         console.log('🔄 Server disconnected socket, reconnecting...');
+        // Do NOT reset activeCall - let WebRTC continue
         newSocket.connect();
       }
     });
@@ -295,8 +304,17 @@ export const SocketProvider = ({ children }) => {
 
     // Call connected
     newSocket.on('call_connected', (data) => {
-      console.log('📞 Call connected:', data);
-      setActiveCall(prev => prev ? { ...prev, status: 'connected', startTime: Date.now() } : null);
+      console.log('📞 Call connected event received:', data);
+      console.log('🔍 Updating activeCall state to connected');
+      setActiveCall(prev => {
+        if (!prev) {
+          console.warn('⚠️ No active call found to update');
+          return null;
+        }
+        const updated = { ...prev, status: 'connected', startTime: Date.now() };
+        console.log('✅ Active call updated:', { callId: updated.callId, status: updated.status });
+        return updated;
+      });
       stopIncomingCallSound();
     });
 
