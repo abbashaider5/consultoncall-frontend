@@ -256,14 +256,15 @@ export const SocketProvider = ({ children }) => {
 
     // Incoming call (for experts) - Only for notification, actual call handled by Agora
     newSocket.on('incoming_call', (data) => {
-      console.log('📞 INCOMING CALL NOTIFICATION:', JSON.stringify(data, null, 2));
-      console.log('👤 Expert receiving call:', {
+      console.log('📞📞📞 INCOMING CALL EVENT RECEIVED 📞📞📞');
+      console.log('📞 Raw data:', JSON.stringify(data, null, 2));
+      console.log('👤 Current auth state:', {
         myUserId: user?._id,
         myExpertId: expert?._id,
         myRole: user?.role,
         isExpert,
         targetExpertId: data.expertId,
-        shouldShowModal: isExpert || !!expert || user?.role === 'expert'
+        matchesTarget: (expert?._id === data.expertId) || (expert?.id === data.expertId)
       });
       
       const incomingCallData = {
@@ -271,12 +272,18 @@ export const SocketProvider = ({ children }) => {
         userId: data.userId,
         expertId: data.expertId,
         status: 'ringing', // Explicit status
-        callerInfo: data.caller
+        callerInfo: data.caller || data.callerInfo || { name: 'Caller', avatar: null }
       };
       
-      console.log('✅ Setting incomingCall state:', incomingCallData);
+      console.log('✅✅✅ SETTING INCOMING CALL STATE ✅✅✅');
+      console.log('📞 IncomingCall data:', JSON.stringify(incomingCallData, null, 2));
       setIncomingCall(incomingCallData);
-      console.log('✅ IncomingCallModal should now be visible');
+      
+      // Verify state was set (check in next tick)
+      setTimeout(() => {
+        console.log('🔍 Verifying incomingCall state was set...');
+        console.log('🔍 Check IncomingCallModal render in React DevTools');
+      }, 100);
     });
 
     // Call accepted (for users)

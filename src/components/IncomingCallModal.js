@@ -13,8 +13,19 @@ const IncomingCallModal = () => {
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
 
+  console.log('🔄 IncomingCallModal render cycle:', {
+    hasIncomingCall: !!incomingCall,
+    incomingCallId: incomingCall?.callId,
+    incomingCallStatus: incomingCall?.status,
+    isExpert,
+    hasExpertProfile: !!expert,
+    userRole: user?.role,
+    expertId: expert?._id
+  });
+
   // Only show when there's an incoming call
   if (!incomingCall) {
+    console.log('❌ IncomingCallModal: No incomingCall - returning null');
     return null;
   }
 
@@ -30,9 +41,12 @@ const IncomingCallModal = () => {
     return null;
   }
 
-  console.log('✅ IncomingCallModal: Rendering for expert', {
+  console.log('✅✅✅ IncomingCallModal: RENDERING MODAL ✅✅✅');
+  console.log('📞 Call info:', {
     callerName: incomingCall.callerInfo?.name,
-    callId: incomingCall.callId
+    callId: incomingCall.callId,
+    status: incomingCall.status,
+    expertId: incomingCall.expertId
   });
 
   const handleAccept = async () => {

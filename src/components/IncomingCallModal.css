@@ -4,7 +4,7 @@
    ======================================== */
 
 /* Global Overlay - Professional Blurred Backdrop */
-.incoming-modal-overlay {
+.call-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -32,7 +32,7 @@
 /* ========================================
    FLOATING MODAL CARD
    ======================================== */
-.incoming-modal-content {
+.call-modal-content {
   position: fixed;
   top: 50%;
   left: 50%;
