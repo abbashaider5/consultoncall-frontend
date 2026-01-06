@@ -199,6 +199,15 @@
     flex-shrink: 0;
     border: 1px solid var(--border-color);
 }
+    .chat-avatar.chat-avatar-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        font-weight: 700;
+        font-size: 1rem;
+    }
 
 /* Chat Item Content */
 .chat-item-content {
@@ -386,6 +395,18 @@
     border: 3px solid var(--bg-color);
     transition: all 0.3s ease;
 }
+    .chat-header-avatar.chat-avatar-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        font-weight: 700;
+    }
+
+    .message-avatar.message-avatar-spacer {
+        visibility: hidden;
+    }
 
 .status-indicator.status-online {
     background: #31a24c;

@@ -1,9 +1,16 @@
-import { AgoraChat } from 'agora-chat';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FiSend, FiX } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
+import {
+    connectChatSession,
+    fromRtmUserId,
+    sendTextMessage,
+    subscribeToConnection,
+    subscribeToMessages,
+    toRtmUserId,
+} from '../services/agoraChatClient';
 import './AgoraChatWindow.css';
 
 // Import message sound
@@ -13,129 +20,95 @@ const AgoraChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipien
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
-  const [isOnline, setIsOnline] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(false);
+  const [isOnline] = useState(false);
+  const [isBlocked] = useState(false);
   const [chatConnection, setChatConnection] = useState('disconnected');
   const messagesEndRef = useRef(null);
-  const chatClientRef = useRef(null);
+  const chatSessionRef = useRef(null);
   const { user } = useAuth();
 
-  // Initialize Agora Chat
-  useEffect(() => {
-    if (!isOpen || !user?._id) return;
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
-    const initAgoraChat = async () => {
-      try {
-        console.log('🔌 Initializing Agora Chat...');
-        
-        // Get Agora Chat token from backend
-        const { data } = await axios.get('/api/agora/chat-token');
-        
-        // Initialize Agora Chat SDK
-        const chatClient = new AgoraChat.connection({
-          appKey: process.env.REACT_APP_AGORA_CHAT_APP_KEY,
-        });
-
-        chatClientRef.current = chatClient;
-
-        // Listen for connection events
-        chatClient.addEventHandler('connection', {
-          onConnected: () => {
-            console.log('✅ Agora Chat connected');
-            setChatConnection('connected');
-          },
-          onDisconnected: () => {
-            console.log('🔌 Agora Chat disconnected');
-            setChatConnection('disconnected');
-          },
-        });
-
-        // Listen for new messages
-        chatClient.addEventHandler('message', {
-          onTextMessage: (message) => {
-            console.log('📨 New message received:', message);
-            
-            // Play notification sound
-            if (!document.hidden) {
-              newMessageSound.play().catch(e => console.log('Could not play sound:', e));
-            }
-            
-            // Show toast notification
-            toast.success(`New message from ${recipientName}`, {
-              position: 'top-right',
-              autoClose: 3000,
-              toastId: `msg-${message.id}`,
-              hideProgressBar: true
-            });
-            
-            // Add message to list
-            const newMessage = {
-              _id: message.id,
-              content: message.msg,
-              sender: message.from,
-              createdAt: new Date(message.time).toISOString(),
-              status: 'received'
-            };
-            setMessages(prev => [...prev, newMessage]);
-            scrollToBottom();
-          },
-        });
-
-        // Login to Agora Chat
-        await chatClient.open({
-          user: user._id,
-          accessToken: data.token,
-        });
-
-        console.log('✅ Agora Chat initialized and connected');
-      } catch (error) {
-        console.error('❌ Agora Chat initialization error:', error);
-        setChatConnection('error');
-        toast.error('Failed to connect to chat');
-      }
-    };
-
-    initAgoraChat();
-
-    // Load message history from backend
-    loadMessages();
-
-    return () => {
-      if (chatClientRef.current) {
-        chatClientRef.current.removeEventHandler('connection');
-        chatClientRef.current.removeEventHandler('message');
-        chatClientRef.current.close();
-      }
-    };
-  }, [isOpen, user?._id, recipientId, recipientName]);
-
-  // Load message history from backend
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     try {
       const { data } = await axios.get(`/api/chats/get-or-create/messages?participantId=${recipientId}`);
       if (data.messages) {
         setMessages(data.messages);
-        // Auto-scroll to bottom after loading
         setTimeout(() => scrollToBottom(), 100);
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
     }
-  };
+  }, [recipientId, scrollToBottom]);
+
+  // Initialize Agora Chat
+  useEffect(() => {
+    if (!isOpen || !user?._id) return;
+
+    let release = null;
+    const unsubscribeConn = subscribeToConnection((status) => setChatConnection(status));
+    const unsubscribeMsg = subscribeToMessages((message) => {
+      const senderDbId = fromRtmUserId(message.from);
+      if (String(senderDbId) !== String(recipientId)) return;
+
+      // Prevent duplicates
+      setMessages(prev => {
+        if (prev.some(m => m._id === message.id)) return prev;
+        return [...prev, {
+          _id: message.id,
+          content: message.msg,
+          sender: senderDbId,
+          createdAt: new Date(message.time).toISOString(),
+          status: 'received'
+        }];
+      });
+
+      if (!document.hidden) {
+        newMessageSound.play().catch(() => {});
+      }
+
+      toast.success(`New message from ${recipientName}`, {
+        position: 'top-right',
+        autoClose: 3000,
+        toastId: `msg-${message.id}`,
+        hideProgressBar: true
+      });
+    });
+
+    (async () => {
+      try {
+        setChatConnection('connecting');
+        const session = await connectChatSession(user._id);
+        chatSessionRef.current = session;
+        release = session.release;
+      } catch {
+        setChatConnection('error');
+        toast.error('Failed to connect to chat');
+      }
+    })();
+
+    // Load message history from backend
+    loadMessages();
+
+    return () => {
+      unsubscribeConn();
+      unsubscribeMsg();
+      if (release) release();
+      chatSessionRef.current = null;
+    };
+  }, [isOpen, user?._id, recipientId, recipientName, loadMessages]);
 
   // Auto-scroll to bottom when new message arrives
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, [messages, scrollToBottom]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
 
-    if (!messageText.trim() || !chatClientRef.current) return;
+    if (!messageText.trim() || !chatSessionRef.current) return;
 
     if (chatConnection !== 'connected') {
       toast.error('Chat not connected. Please wait...');
@@ -155,24 +128,18 @@ const AgoraChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipien
     };
 
     setMessages(prev => [...prev, tempMessage]);
+    const contentToSend = messageText.trim();
     setMessageText('');
     scrollToBottom();
 
     try {
       // Send via Agora Chat
-      const msg = AgoraChat.message.create({
-        type: 'txt',
-        msg: messageText.trim(),
-        to: recipientId,
-        chatType: 'singleChat',
-      });
-
-      await chatClientRef.current.send(msg);
+      await sendTextMessage({ to: toRtmUserId(recipientId), text: contentToSend });
       
       // Also save to backend for persistence
       const { data } = await axios.post(`/api/chats/get-or-create/messages`, {
         participantId: recipientId,
-        content: messageText.trim()
+        content: contentToSend
       });
 
       // Replace temp message with real message
@@ -181,7 +148,6 @@ const AgoraChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipien
       ));
 
     } catch (error) {
-      console.error('Send message error:', error);
       toast.error('Failed to send message');
       
       // Mark message as failed
@@ -254,18 +220,24 @@ const AgoraChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipien
           ) : (
             messages.map((msg, index) => {
               const own = isOwnMessage(msg);
+              const prevMsg = index > 0 ? messages[index - 1] : null;
+              const prevSender = prevMsg ? (prevMsg.sender?._id || prevMsg.sender) : null;
+              const sender = msg.sender?._id || msg.sender;
+              const isGroupStart = !prevMsg || String(prevSender) !== String(sender);
               
               return (
                 <div key={msg._id || index} className={`agora-message ${own ? 'own' : 'other'}`}>
                   {!own && (
-                    <div className="message-avatar-small">
-                      {recipientAvatar ? (
-                        <img src={recipientAvatar} alt="" />
-                      ) : (
-                        <div className="avatar-placeholder-small">
-                          {recipientName?.charAt(0)?.toUpperCase()}
-                        </div>
-                      )}
+                    <div className={`message-avatar-small ${isGroupStart ? '' : 'message-avatar-spacer'}`}>
+                      {isGroupStart ? (
+                        recipientAvatar ? (
+                          <img src={recipientAvatar} alt="" />
+                        ) : (
+                          <div className="avatar-placeholder-small">
+                            {recipientName?.charAt(0)?.toUpperCase()}
+                          </div>
+                        )
+                      ) : null}
                     </div>
                   )}
                   <div className="message-content-wrapper">
@@ -282,17 +254,6 @@ const AgoraChatWindow = ({ isOpen, onClose, recipientId, recipientName, recipien
                       </div>
                     </div>
                   </div>
-                  {own && (
-                    <div className="message-avatar-small">
-                      {user?.avatar ? (
-                        <img src={user.avatar} alt="" />
-                      ) : (
-                        <div className="avatar-placeholder-small">
-                          {user?.name?.charAt(0)?.toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })

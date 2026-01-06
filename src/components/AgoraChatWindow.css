@@ -371,6 +371,10 @@
     font-weight: 600;
 }
 
+.message-avatar-small.message-avatar-spacer {
+    visibility: hidden;
+}
+
 /* Message Content */
 .message-content {
     flex: 1;

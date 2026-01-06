@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FiArrowLeft, FiSearch, FiSend, FiSlash, FiTrash2 } from 'react-icons/fi';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
@@ -9,8 +9,14 @@ import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './Chat.css';
 
-// Import Agora Chat SDK
-import AgoraChat from 'agora-chat';
+import {
+  connectChatSession,
+  fromRtmUserId,
+  sendTextMessage,
+  subscribeToConnection,
+  subscribeToMessages,
+  toRtmUserId,
+} from '../services/agoraChatClient';
 
 const Chat = () => {
   const [chats, setChats] = useState([]);
@@ -19,176 +25,84 @@ const Chat = () => {
   const [messageText, setMessageText] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [sending, setSending] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [isBlockedByOther, setIsBlockedByOther] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatConnection, setChatConnection] = useState('disconnected');
   const [unreadCount, setUnreadCount] = useState({});
   const messagesEndRef = useRef(null);
-  const chatClientRef = useRef(null);
-  const isInitializedRef = useRef(false);
+  const chatSessionRef = useRef(null);
+  const selectedChatRef = useRef(null);
+  const chatsRef = useRef([]);
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const currentUserId = user?._id;
 
-  // Initialize Agora Chat - ONLY ONCE
+  const getOtherParticipant = useCallback((chat) => {
+    return chat.participants.find(p => p._id !== currentUserId);
+  }, [currentUserId]);
+
+  // Load chats
+  const loadChats = useCallback(async () => {
+    try {
+      const { data } = await axios.get('/api/chats');
+      if (Array.isArray(data)) {
+        setChats(data);
+      } else {
+        setChats([]);
+      }
+    } catch {
+      setChats([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!user?._id || isInitializedRef.current) return;
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
 
-    const initAgoraChat = async () => {
-      try {
-        setChatConnection('connecting');
-        console.log('🔌 Initializing Agora Chat...');
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
 
-        // Get Agora Chat token from backend
-        const { data } = await axios.get('/api/agora/chat-token');
-        
-        console.log('🔑 Chat token response:', { 
-          success: data.success, 
-          hasUserId: !!data.userId, 
-          hasToken: !!data.token,
-          appKey: data.appKey?.substring(0, 10) + '...' 
-        });
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
-        if (!data.success) {
-          throw new Error('Failed to get chat token from backend: ' + data.message);
-        }
+  const playNotificationSound = useCallback(() => {
+    try {
+      const audio = new Audio('/assets/new-message-tone.mp3');
+      audio.play().catch(() => {});
+    } catch {
+      // ignore
+    }
+  }, []);
 
-        // CRITICAL: Use userId returned by backend - MUST match token generation
-        const chatUserId = data.userId;
-        if (!chatUserId) {
-          throw new Error('No userId returned from backend');
-        }
+  const findChatIdByParticipant = useCallback((participantId) => {
+    const chat = chatsRef.current.find(chat => {
+      const other = getOtherParticipant(chat);
+      return other && other._id.toString() === participantId;
+    });
+    return chat?._id;
+  }, [getOtherParticipant]);
 
-        const appKey = data.appKey || process.env.REACT_APP_AGORA_CHAT_APP_KEY;
-        if (!appKey) {
-          throw new Error('Agora Chat App Key not configured');
-        }
-
-        console.log('🔑 Using userId for chat login:', chatUserId);
-
-        // Clean up existing client if any
-        if (chatClientRef.current) {
-          try {
-            chatClientRef.current.removeEventHandler('connection');
-            chatClientRef.current.removeEventHandler('message');
-            chatClientRef.current.close();
-          } catch (e) {
-            console.log('Cleanup error:', e);
-          }
-        }
-
-        // Initialize Agora Chat SDK
-        const chatClient = new AgoraChat.connection({
-          appKey: appKey,
-        });
-
-        chatClientRef.current = chatClient;
-
-        // Listen for connection events
-        chatClient.addEventHandler('connection', {
-          onConnected: () => {
-            console.log('✅ Agora Chat connected successfully');
-            setChatConnection('connected');
-          },
-          onDisconnected: () => {
-            console.log('🔌 Agora Chat disconnected');
-            setChatConnection('disconnected');
-          },
-          onTokenWillExpire: () => {
-            console.log('🔄 Token expiring, refreshing...');
-            axios.get('/api/agora/chat-token')
-              .then(res => {
-                if (res.data.success) {
-                  chatClient.renewToken(res.data.token);
-                }
-              })
-              .catch(err => console.error('Token refresh error:', err));
-          },
-          onError: (error) => {
-            console.error('❌ Agora Chat connection error:', error);
-            if (error.type === 'SOCKET_ERROR') {
-              setChatConnection('error');
-            } else if (error.type === 'WEB_SOCKET_ERROR') {
-              console.error('WebSocket error, code:', error.code);
-              if (error.code === 3000) {
-                console.error('❌ Auth failed - userId/token mismatch');
-              }
-              setChatConnection('error');
-            }
-          },
-        });
-
-        // Listen for new messages - ONLY ONCE
-        chatClient.addEventHandler('message', {
-          onTextMessage: (message) => {
-            console.log('📨 New message received:', message);
-            handleIncomingMessage(message);
-          },
-        });
-
-        // Login to Agora Chat - CRITICAL: Use userId from backend response
-        console.log('🔐 Attempting to login with userId:', chatUserId);
-        await chatClient.open({
-          user: chatUserId, // Use userId from backend - MUST match token generation
-          accessToken: data.token,
-        });
-        console.log('✅ Chat login successful with userId:', chatUserId);
-
-        isInitializedRef.current = true;
-        console.log('✅ Agora Chat initialized and connected');
-        setChatConnection('connected');
-      } catch (error) {
-        console.error('❌ Agora Chat initialization error:', error);
-        console.error('Error details:', {
-          message: error.message,
-          response: error.response,
-          data: error.data,
-          code: error.code,
-          type: error.type
-        });
-        setChatConnection('error');
-        isInitializedRef.current = false;
-        
-        if (error.code === 3000 || error.message?.includes('Auth failed')) {
-          toast.error('Chat authentication failed. Please refresh the page.');
-        } else if (error.response?.status === 404) {
-          toast.error('Chat service not available. Please try again later.');
-        } else {
-          toast.error(error.message || 'Failed to connect to chat');
-        }
-      }
-    };
-
-    initAgoraChat();
-
-    return () => {
-      if (chatClientRef.current) {
-        console.log('🧹 Cleaning up Agora Chat client');
-        try {
-          chatClientRef.current.removeEventHandler('connection');
-          chatClientRef.current.removeEventHandler('message');
-          chatClientRef.current.close();
-        } catch (e) {
-          console.log('Cleanup error:', e);
-        }
-        chatClientRef.current = null;
-      }
-      isInitializedRef.current = false;
-    };
-  }, [user?._id]);
-
-  const handleIncomingMessage = (message) => {
-    const senderId = message.from;
+  const handleIncomingMessage = useCallback((message) => {
+    const senderRtmUserId = message.from;
+    const senderDbId = fromRtmUserId(senderRtmUserId);
     const content = message.msg;
     const messageTime = new Date(message.time).toISOString();
+
+    // Ignore self-echo if any
+    if (String(senderRtmUserId) === String(toRtmUserId(currentUserId))) {
+      return;
+    }
     
     // Check if this message belongs to currently selected chat
-    const otherParticipant = selectedChat ? getOtherParticipant(selectedChat) : null;
-    const isForCurrentChat = otherParticipant && senderId === otherParticipant._id.toString();
+    const activeChat = selectedChatRef.current;
+    const otherParticipant = activeChat ? getOtherParticipant(activeChat) : null;
+    const isForCurrentChat = otherParticipant && String(senderDbId) === String(otherParticipant._id);
 
     if (isForCurrentChat) {
       // Add message to current chat
@@ -200,7 +114,7 @@ const Chat = () => {
         return [...prev, {
           _id: message.id,
           content: content,
-          sender: senderId,
+          sender: senderDbId,
           createdAt: messageTime,
           read: true
         }];
@@ -211,7 +125,7 @@ const Chat = () => {
       playNotificationSound();
     } else {
       // Increment unread count for the chat
-      const chatId = findChatIdByParticipant(senderId);
+      const chatId = findChatIdByParticipant(senderDbId);
       if (chatId) {
         setUnreadCount(prev => ({
           ...prev,
@@ -223,24 +137,35 @@ const Chat = () => {
     
     // Reload chats to update last message
     loadChats();
-  };
+  }, [currentUserId, findChatIdByParticipant, getOtherParticipant, loadChats, playNotificationSound, scrollToBottom]);
 
-  const playNotificationSound = () => {
-    try {
-      const audio = new Audio('/assets/new-message-tone.mp3');
-      audio.play().catch(err => console.log('Audio play error:', err));
-    } catch (e) {
-      console.log('Sound notification error:', e);
-    }
-  };
+  // Initialize Agora Chat - singleton/session
+  useEffect(() => {
+    if (!user?._id) return;
 
-  const findChatIdByParticipant = (participantId) => {
-    const chat = chats.find(chat => {
-      const other = getOtherParticipant(chat);
-      return other && other._id.toString() === participantId;
-    });
-    return chat?._id;
-  };
+    let release = null;
+    const unsubscribeConn = subscribeToConnection((status) => setChatConnection(status));
+    const unsubscribeMsg = subscribeToMessages((message) => handleIncomingMessage(message));
+
+    (async () => {
+      try {
+        setChatConnection('connecting');
+        const session = await connectChatSession(user._id);
+        chatSessionRef.current = session;
+        release = session.release;
+      } catch {
+        setChatConnection('error');
+        toast.error('Failed to connect to chat');
+      }
+    })();
+
+    return () => {
+      unsubscribeConn();
+      unsubscribeMsg();
+      if (release) release();
+      chatSessionRef.current = null;
+    };
+  }, [handleIncomingMessage, user?._id]);
 
   // Filter chats by search
   const filteredChats = chats.filter(chat => {
@@ -249,29 +174,14 @@ const Chat = () => {
     return other?.name?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  // Load chats
-  const loadChats = async () => {
-    try {
-      const { data } = await axios.get('/api/chats');
-      if (Array.isArray(data)) {
-        setChats(data);
-      } else {
-        setChats([]);
-      }
-    } catch (error) {
-      console.error('Failed to load chats:', error);
-      setChats([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
   // Initial load and periodic refresh
   useEffect(() => {
     loadChats();
     const interval = setInterval(loadChats, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadChats]);
 
   // Auto-select chat with expert from URL parameter
   useEffect(() => {
@@ -309,16 +219,12 @@ const Chat = () => {
     };
 
     loadAndMarkRead();
-  }, [selectedChat]);
+  }, [selectedChat, getOtherParticipant]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, [messages, scrollToBottom]);
 
   const loadMessages = async (chatId) => {
     setLoadingMessages(true);
@@ -349,9 +255,8 @@ const Chat = () => {
       await axios.post(`/api/users/${action}/${otherParticipant._id}`);
       setIsBlocked(!isBlocked);
       toast.success(isBlocked ? 'User unblocked' : 'User blocked');
-    } catch (error) {
+    } catch {
       toast.error(`Failed to ${action} user`);
-      console.error(error);
     }
   };
 
@@ -374,12 +279,12 @@ const Chat = () => {
       }
     };
     checkBlockStatus();
-  }, [selectedChat]);
+  }, [selectedChat, getOtherParticipant]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
 
-    if (!messageText.trim() || !selectedChat || !chatClientRef.current || chatConnection !== 'connected') {
+    if (!messageText.trim() || !selectedChat || !chatSessionRef.current || chatConnection !== 'connected') {
       return;
     }
 
@@ -391,25 +296,26 @@ const Chat = () => {
     setMessageText('');
     scrollToBottom();
 
+    // Optimistic UI update
+    setMessages(prev => [...prev, {
+      _id: tempId,
+      content: contentToSend,
+      sender: currentUserId,
+      createdAt: new Date().toISOString(),
+      status: 'sending',
+      isOptimistic: true
+    }]);
+
     try {
-      // Send via Agora Chat FIRST
-      const msg = AgoraChat.message.create({
-        type: 'txt',
-        msg: contentToSend,
-        to: otherUser._id.toString(),
-        chatType: 'singleChat',
+      // Send via Agora Chat
+      await sendTextMessage({
+        to: toRtmUserId(otherUser._id),
+        text: contentToSend
       });
 
-      await chatClientRef.current.send(msg);
-      
-      // Add message to UI after successful Agora send
-      setMessages(prev => [...prev, {
-        _id: msg.id || tempId,
-        content: contentToSend,
-        sender: currentUserId,
-        createdAt: new Date().toISOString(),
-        status: 'sent'
-      }]);
+      setMessages(prev => prev.map(m =>
+        m._id === tempId ? { ...m, status: 'sent', isOptimistic: false } : m
+      ));
 
       // Also save to backend for persistence
       const { data } = await axios.post(`/api/chats/${selectedChat._id}/messages`, {
@@ -417,16 +323,14 @@ const Chat = () => {
       });
 
       // Update with backend data
-      setMessages(prev => prev.map(msg => 
-        (msg._id === tempId || msg._id === msg.id) ? { ...data, status: 'sent' } : msg
+      setMessages(prev => prev.map(m =>
+        m._id === tempId ? { ...data, status: 'sent' } : m
       ));
 
       // Reload chats to update last message
       loadChats();
 
     } catch (error) {
-      console.error('Send message error:', error);
-      
       const errorMessage = error.response?.data?.message || error.message;
       if (errorMessage?.includes('blocked')) {
         setIsBlockedByOther(true);
@@ -434,8 +338,9 @@ const Chat = () => {
       
       toast.error(errorMessage || 'Failed to send message');
       
-      // Restore input text on error
-      setMessageText(contentToSend);
+      setMessages(prev => prev.map(m =>
+        m._id === tempId ? { ...m, status: 'failed' } : m
+      ));
     }
   };
 
@@ -454,10 +359,6 @@ const Chat = () => {
       console.error('Delete chat error:', error);
       toast.error(error.response?.data?.message || 'Failed to delete chat');
     }
-  };
-
-  const getOtherParticipant = (chat) => {
-    return chat.participants.find(p => p._id !== currentUserId);
   };
 
   const formatTime = (date) => {
@@ -562,11 +463,17 @@ const Chat = () => {
                   className={`chat-item ${selectedChat?._id === chat._id ? 'active' : ''}`}
                   onClick={() => setSelectedChat(chat)}
                 >
-                  <img
-                    src={otherUser?.avatar || 'https://via.placeholder.com/50'}
-                    alt={otherUser?.name}
-                    className="chat-avatar"
-                  />
+                  {otherUser?.avatar ? (
+                    <img
+                      src={otherUser.avatar}
+                      alt={otherUser?.name}
+                      className="chat-avatar"
+                    />
+                  ) : (
+                    <div className="chat-avatar chat-avatar-placeholder">
+                      {otherUser?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                  )}
                   <div className="chat-item-content">
                     <div className="chat-item-header">
                       <span className="chat-name">
@@ -602,11 +509,17 @@ const Chat = () => {
                   <FiArrowLeft />
                 </button>
                 <div className="avatar-wrapper">
-                  <img
-                    src={getOtherParticipant(selectedChat)?.avatar || 'https://via.placeholder.com/40'}
-                    alt={getOtherParticipant(selectedChat)?.name}
-                    className="chat-header-avatar"
-                  />
+                  {getOtherParticipant(selectedChat)?.avatar ? (
+                    <img
+                      src={getOtherParticipant(selectedChat)?.avatar}
+                      alt={getOtherParticipant(selectedChat)?.name}
+                      className="chat-header-avatar"
+                    />
+                  ) : (
+                    <div className="chat-header-avatar chat-avatar-placeholder">
+                      {getOtherParticipant(selectedChat)?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                  )}
                 </div>
                 <div className="chat-header-info">
                   <div className="name-row">
@@ -657,10 +570,13 @@ const Chat = () => {
                 </div>
               ) : (
                 messages.map((msg, index) => {
-                  const isOwn = String(msg.sender?._id || msg.sender) === String(currentUserId);
+                  const senderValue = msg.sender?._id || msg.sender;
+                  const isOwn = String(senderValue) === String(currentUserId) || String(senderValue) === String(toRtmUserId(currentUserId));
                   const prevMsg = index > 0 ? messages[index - 1] : null;
                   const showDateSeparator = shouldShowDateSeparator(msg, prevMsg);
                   const otherUser = getOtherParticipant(selectedChat);
+                  const prevSenderValue = prevMsg ? (prevMsg.sender?._id || prevMsg.sender) : null;
+                  const isGroupStart = !prevMsg || showDateSeparator || String(prevSenderValue) !== String(senderValue);
 
                   return (
                     <div key={msg._id || index}>
@@ -671,14 +587,16 @@ const Chat = () => {
                       )}
                       <div className={`message ${isOwn ? 'own' : 'other'}`}>
                         {!isOwn && (
-                          <div className="message-avatar">
-                            {otherUser?.avatar ? (
-                              <img src={otherUser.avatar} alt="" />
-                            ) : (
-                              <div className="avatar-placeholder-small">
-                                {otherUser?.name?.charAt(0)?.toUpperCase()}
-                              </div>
-                            )}
+                          <div className={`message-avatar ${isGroupStart ? '' : 'message-avatar-spacer'}`}>
+                            {isGroupStart ? (
+                              otherUser?.avatar ? (
+                                <img src={otherUser.avatar} alt="" />
+                              ) : (
+                                <div className="avatar-placeholder-small">
+                                  {otherUser?.name?.charAt(0)?.toUpperCase()}
+                                </div>
+                              )
+                            ) : null}
                           </div>
                         )}
                         <div className="message-content">
@@ -695,17 +613,6 @@ const Chat = () => {
                             </div>
                           </div>
                         </div>
-                        {isOwn && (
-                          <div className="message-avatar">
-                            {user?.avatar ? (
-                              <img src={user.avatar} alt="" />
-                            ) : (
-                              <div className="avatar-placeholder-small">
-                                {user?.name?.charAt(0)?.toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   );
@@ -742,8 +649,8 @@ const Chat = () => {
                   onChange={(e) => setMessageText(e.target.value)}
                   placeholder={
                     chatConnection === 'connecting' ? 'Connecting...' :
-                    chatConnection === 'error' ? 'Connection error' :
-                    chatConnection === 'disconnected' ? 'Disconnected' :
+                    chatConnection === 'error' ? 'Reconnecting...' :
+                    chatConnection === 'disconnected' ? 'Reconnecting...' :
                     'Type a message...'
                   }
                   className="message-input"
