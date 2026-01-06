@@ -1,4 +1,3 @@
-import { AgoraChat } from 'agora-chat';
 import { useEffect, useRef, useState } from 'react';
 import { FiArrowLeft, FiSearch, FiSend, FiSlash, FiTrash2 } from 'react-icons/fi';
 import Skeleton from 'react-loading-skeleton';
@@ -10,7 +9,9 @@ import { axiosInstance as axios } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './Chat.css';
 
-// Initialize Agora Chat SDK
+// Import Agora Chat SDK
+import { AgoraChat } from 'agora-chat';
+
 let chatClient = null;
 
 const Chat = () => {
@@ -26,24 +27,38 @@ const Chat = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatConnection, setChatConnection] = useState('disconnected');
+  const [unreadCount, setUnreadCount] = useState({});
   const messagesEndRef = useRef(null);
-  const { user, expert } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const currentUserId = localStorage.getItem('userId');
+  const currentUserId = user?._id;
 
   // Initialize Agora Chat
   useEffect(() => {
+    if (!user?._id) return;
+
     const initAgoraChat = async () => {
       try {
-        if (!user?._id) return;
+        setChatConnection('connecting');
+        console.log('🔌 Initializing Agora Chat...');
 
         // Get Agora Chat token from backend
         const { data } = await axios.get('/api/agora/chat-token');
         
+        if (!data.success || !data.token) {
+          throw new Error('Failed to get chat token from backend');
+        }
+
         // Initialize Agora Chat SDK
+        if (chatClient) {
+          chatClient.removeEventHandler('connection');
+          chatClient.removeEventHandler('message');
+          chatClient.close();
+        }
+
         chatClient = new AgoraChat.connection({
-          appKey: process.env.REACT_APP_AGORA_CHAT_APP_KEY,
+          appKey: process.env.REACT_APP_AGORA_CHAT_APP_KEY || data.appKey,
         });
 
         // Listen for connection events
@@ -55,6 +70,17 @@ const Chat = () => {
           onDisconnected: () => {
             console.log('🔌 Agora Chat disconnected');
             setChatConnection('disconnected');
+          },
+          onTokenWillExpire: () => {
+            console.log('🔄 Token expiring, refreshing...');
+            // Handle token refresh
+            axios.get('/api/agora/chat-token')
+              .then(res => {
+                if (res.data.success) {
+                  chatClient.renewToken(res.data.token);
+                }
+              })
+              .catch(err => console.error('Token refresh error:', err));
           },
         });
 
@@ -68,14 +94,16 @@ const Chat = () => {
 
         // Login to Agora Chat
         await chatClient.open({
-          user: user._id,
+          user: user._id.toString(),
           accessToken: data.token,
         });
 
         console.log('✅ Agora Chat initialized and connected');
+        setChatConnection('connected');
       } catch (error) {
         console.error('❌ Agora Chat initialization error:', error);
         setChatConnection('error');
+        toast.error(error.message || 'Failed to connect to chat');
       }
     };
 
@@ -86,35 +114,65 @@ const Chat = () => {
         chatClient.removeEventHandler('connection');
         chatClient.removeEventHandler('message');
         chatClient.close();
+        chatClient = null;
       }
     };
   }, [user?._id]);
 
   const handleIncomingMessage = (message) => {
     const senderId = message.from;
-    const receiverId = message.to;
+    const content = message.msg;
+    const messageTime = new Date(message.time).toISOString();
     
-    // Find which chat this message belongs to
-    const chatId = [senderId, receiverId].sort().join('_');
-    
-    if (selectedChat && chatId === selectedChat.agoraChatId) {
+    // Check if this message belongs to the currently selected chat
+    const otherParticipant = selectedChat ? getOtherParticipant(selectedChat) : null;
+    const isForCurrentChat = otherParticipant && senderId === otherParticipant._id.toString();
+
+    if (isForCurrentChat) {
       // Add message to current chat
       const newMessage = {
         _id: message.id,
-        content: message.msg,
-        sender: message.from,
-        createdAt: new Date(message.time).toISOString(),
-        status: 'received'
+        content: content,
+        sender: senderId,
+        createdAt: messageTime,
+        read: true
       };
       setMessages(prev => [...prev, newMessage]);
       scrollToBottom();
       
-      // Mark as read via backend
-      axios.put(`/api/chats/${selectedChat._id}/read`).catch(err => console.log('Mark read error:', err));
+      // Play notification sound
+      playNotificationSound();
+    } else {
+      // Increment unread count for the chat
+      const chatId = findChatIdByParticipant(senderId);
+      if (chatId) {
+        setUnreadCount(prev => ({
+          ...prev,
+          [chatId]: (prev[chatId] || 0) + 1
+        }));
+        playNotificationSound();
+      }
     }
     
     // Reload chats to update last message
     loadChats();
+  };
+
+  const playNotificationSound = () => {
+    try {
+      const audio = new Audio('/assets/new-message-tone.mp3');
+      audio.play().catch(err => console.log('Audio play error:', err));
+    } catch (e) {
+      console.log('Sound notification error:', e);
+    }
+  };
+
+  const findChatIdByParticipant = (participantId) => {
+    const chat = chats.find(chat => {
+      const other = getOtherParticipant(chat);
+      return other && other._id.toString() === participantId;
+    });
+    return chat?._id;
   };
 
   // Filter chats by search
@@ -127,6 +185,8 @@ const Chat = () => {
   // Load chats
   useEffect(() => {
     loadChats();
+    const interval = setInterval(loadChats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Auto-select chat with expert from URL parameter
@@ -140,7 +200,6 @@ const Chat = () => {
 
       if (chatWithExpert && !selectedChat) {
         setSelectedChat(chatWithExpert);
-        // Clear URL parameter after selecting
         navigate('/chat', { replace: true });
       }
     }
@@ -152,10 +211,16 @@ const Chat = () => {
 
     loadMessages(selectedChat._id);
 
-    // Mark read in backend
+    // Mark as read in backend
     (async () => {
       try {
         await axios.put(`/api/chats/${selectedChat._id}/read`);
+        // Clear unread count for this chat
+        setUnreadCount(prev => {
+          const newState = { ...prev };
+          delete newState[selectedChat._id];
+          return newState;
+        });
       } catch (e) {
         console.log('Mark read error:', e);
       }
@@ -262,15 +327,18 @@ const Chat = () => {
     };
 
     setMessages(prev => [...prev, tempMessage]);
+    const messageToSend = messageText.trim();
     setMessageText('');
     scrollToBottom();
+
+    setSending(true);
 
     try {
       // Send via Agora Chat
       const msg = AgoraChat.message.create({
         type: 'txt',
-        msg: messageText.trim(),
-        to: otherUser._id,
+        msg: messageToSend,
+        to: otherUser._id.toString(),
         chatType: 'singleChat',
       });
 
@@ -278,7 +346,7 @@ const Chat = () => {
       
       // Also save to backend for persistence and history
       const { data } = await axios.post(`/api/chats/${selectedChat._id}/messages`, {
-        content: messageText.trim()
+        content: messageToSend
       });
 
       // Replace temp message with real message
@@ -302,6 +370,8 @@ const Chat = () => {
       setMessages(prev => prev.map(msg => 
         msg._id === tempMessage._id ? { ...msg, status: 'failed' } : msg
       ));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -374,14 +444,12 @@ const Chat = () => {
       {/* Chat List Sidebar */}
       <div className={`chat-list ${selectedChat ? 'hidden-mobile' : ''}`}>
         <div className="chat-list-header">
-          <div className="header-top">
-            <h2>Messages</h2>
-            {chatConnection === 'connected' && (
-              <div className="connection-status" title="Agora Chat Connected">
-                <div className="status-dot connected"></div>
-              </div>
-            )}
-          </div>
+          <h2>Messages</h2>
+          {chatConnection === 'connected' && (
+            <div className="connection-status" title="Agora Chat Connected">
+              <div className="status-dot connected"></div>
+            </div>
+          )}
         </div>
         <div className="chat-search">
           <FiSearch className="search-icon" />
@@ -447,6 +515,9 @@ const Chat = () => {
                     </div>
                     <div className="chat-item-footer">
                       <p className="chat-last-message">{chat.lastMessage || 'No messages yet'}</p>
+                      {unreadCount[chat._id] > 0 && (
+                        <span className="unread-badge">{unreadCount[chat._id]}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -481,7 +552,8 @@ const Chat = () => {
                     )}
                   </div>
                   <span className="status-label">
-                    {isTyping ? 'Typing...' : 'Online'}
+                    {chatConnection === 'connected' ? 'Online' : 
+                     chatConnection === 'connecting' ? 'Connecting...' : 'Offline'}
                   </span>
                 </div>
               </div>
@@ -607,9 +679,16 @@ const Chat = () => {
                   type="text"
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
-                  placeholder={chatConnection !== 'connected' ? 'Connecting...' : 'Type a message...'}
+                  placeholder={
+                    chatConnection === 'connecting' ? 'Connecting...' :
+                    chatConnection === 'error' ? 'Connection error' :
+                    chatConnection === 'disconnected' ? 'Disconnected' :
+                    'Type a message...'
+                  }
                   className="message-input"
                   disabled={sending || chatConnection !== 'connected'}
+                  autoFocus
+                  maxLength={1000}
                 />
                 <button type="submit" className="send-btn" disabled={sending || !messageText.trim() || chatConnection !== 'connected'}>
                   <FiSend />
