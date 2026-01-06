@@ -272,9 +272,15 @@
 }
 
 .no-chats-icon {
-    font-size: 4rem;
+    width: 80px;
+    height: 80px;
     margin-bottom: 20px;
-    opacity: 0.5;
+    opacity: 0.3;
+    background: linear-gradient(135deg, var(--primary-color), #6bcb77);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .no-chats h3 {
@@ -549,9 +555,15 @@
 }
 
 .no-messages .empty-icon {
-    font-size: 4rem;
+    width: 80px;
+    height: 80px;
     margin-bottom: 20px;
-    opacity: 0.5;
+    opacity: 0.3;
+    background: linear-gradient(135deg, var(--primary-color), #6bcb77);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .no-messages h3 {
@@ -767,7 +779,14 @@
 }
 
 .blocked-input-notice .blocked-icon {
-    font-size: 2rem;
+    width: 48px;
+    height: 48px;
+    background: #ef4444;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
     flex-shrink: 0;
 }
 

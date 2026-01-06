@@ -12,8 +12,6 @@ import './Chat.css';
 // Import Agora Chat SDK
 import { AgoraChat } from 'agora-chat';
 
-let chatClient = null;
-
 const Chat = () => {
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
@@ -29,14 +27,16 @@ const Chat = () => {
   const [chatConnection, setChatConnection] = useState('disconnected');
   const [unreadCount, setUnreadCount] = useState({});
   const messagesEndRef = useRef(null);
+  const chatClientRef = useRef(null);
+  const isInitializedRef = useRef(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const currentUserId = user?._id;
 
-  // Initialize Agora Chat
+  // Initialize Agora Chat - ONLY ONCE
   useEffect(() => {
-    if (!user?._id) return;
+    if (!user?._id || isInitializedRef.current) return;
 
     const initAgoraChat = async () => {
       try {
@@ -50,16 +50,28 @@ const Chat = () => {
           throw new Error('Failed to get chat token from backend');
         }
 
-        // Initialize Agora Chat SDK
-        if (chatClient) {
-          chatClient.removeEventHandler('connection');
-          chatClient.removeEventHandler('message');
-          chatClient.close();
+        const appKey = process.env.REACT_APP_AGORA_CHAT_APP_KEY || data.appKey;
+        if (!appKey) {
+          throw new Error('Agora Chat App Key not configured');
         }
 
-        chatClient = new AgoraChat.connection({
-          appKey: process.env.REACT_APP_AGORA_CHAT_APP_KEY || data.appKey,
+        // Clean up existing client if any
+        if (chatClientRef.current) {
+          try {
+            chatClientRef.current.removeEventHandler('connection');
+            chatClientRef.current.removeEventHandler('message');
+            chatClientRef.current.close();
+          } catch (e) {
+            console.log('Cleanup error:', e);
+          }
+        }
+
+        // Initialize Agora Chat SDK
+        const chatClient = new AgoraChat.connection({
+          appKey: appKey,
         });
+
+        chatClientRef.current = chatClient;
 
         // Listen for connection events
         chatClient.addEventHandler('connection', {
@@ -73,7 +85,6 @@ const Chat = () => {
           },
           onTokenWillExpire: () => {
             console.log('🔄 Token expiring, refreshing...');
-            // Handle token refresh
             axios.get('/api/agora/chat-token')
               .then(res => {
                 if (res.data.success) {
@@ -84,7 +95,7 @@ const Chat = () => {
           },
         });
 
-        // Listen for new messages
+        // Listen for new messages - ONLY ONCE
         chatClient.addEventHandler('message', {
           onTextMessage: (message) => {
             console.log('📨 New message received:', message);
@@ -98,24 +109,36 @@ const Chat = () => {
           accessToken: data.token,
         });
 
+        isInitializedRef.current = true;
         console.log('✅ Agora Chat initialized and connected');
         setChatConnection('connected');
       } catch (error) {
         console.error('❌ Agora Chat initialization error:', error);
         setChatConnection('error');
-        toast.error(error.message || 'Failed to connect to chat');
+        isInitializedRef.current = false;
+        if (error.response?.status === 404) {
+          toast.error('Chat service not available. Please try again later.');
+        } else {
+          toast.error(error.message || 'Failed to connect to chat');
+        }
       }
     };
 
     initAgoraChat();
 
     return () => {
-      if (chatClient) {
-        chatClient.removeEventHandler('connection');
-        chatClient.removeEventHandler('message');
-        chatClient.close();
-        chatClient = null;
+      if (chatClientRef.current) {
+        console.log('🧹 Cleaning up Agora Chat client');
+        try {
+          chatClientRef.current.removeEventHandler('connection');
+          chatClientRef.current.removeEventHandler('message');
+          chatClientRef.current.close();
+        } catch (e) {
+          console.log('Cleanup error:', e);
+        }
+        chatClientRef.current = null;
       }
+      isInitializedRef.current = false;
     };
   }, [user?._id]);
 
@@ -124,20 +147,25 @@ const Chat = () => {
     const content = message.msg;
     const messageTime = new Date(message.time).toISOString();
     
-    // Check if this message belongs to the currently selected chat
+    // Check if this message belongs to currently selected chat
     const otherParticipant = selectedChat ? getOtherParticipant(selectedChat) : null;
     const isForCurrentChat = otherParticipant && senderId === otherParticipant._id.toString();
 
     if (isForCurrentChat) {
       // Add message to current chat
-      const newMessage = {
-        _id: message.id,
-        content: content,
-        sender: senderId,
-        createdAt: messageTime,
-        read: true
-      };
-      setMessages(prev => [...prev, newMessage]);
+      setMessages(prev => {
+        // Prevent duplicates
+        if (prev.some(msg => msg._id === message.id)) {
+          return prev;
+        }
+        return [...prev, {
+          _id: message.id,
+          content: content,
+          sender: senderId,
+          createdAt: messageTime,
+          read: true
+        }];
+      });
       scrollToBottom();
       
       // Play notification sound
@@ -183,6 +211,23 @@ const Chat = () => {
   });
 
   // Load chats
+  const loadChats = async () => {
+    try {
+      const { data } = await axios.get('/api/chats');
+      if (Array.isArray(data)) {
+        setChats(data);
+      } else {
+        setChats([]);
+      }
+    } catch (error) {
+      console.error('Failed to load chats:', error);
+      setChats([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial load and periodic refresh
   useEffect(() => {
     loadChats();
     const interval = setInterval(loadChats, 30000);
@@ -209,13 +254,11 @@ const Chat = () => {
   useEffect(() => {
     if (!selectedChat) return;
 
-    loadMessages(selectedChat._id);
-
-    // Mark as read in backend
-    (async () => {
+    const loadAndMarkRead = async () => {
+      await loadMessages(selectedChat._id);
+      
       try {
         await axios.put(`/api/chats/${selectedChat._id}/read`);
-        // Clear unread count for this chat
         setUnreadCount(prev => {
           const newState = { ...prev };
           delete newState[selectedChat._id];
@@ -224,7 +267,9 @@ const Chat = () => {
       } catch (e) {
         console.log('Mark read error:', e);
       }
-    })();
+    };
+
+    loadAndMarkRead();
   }, [selectedChat]);
 
   // Auto-scroll to bottom
@@ -234,22 +279,6 @@ const Chat = () => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const loadChats = async () => {
-    try {
-      const { data } = await axios.get('/api/chats');
-      if (Array.isArray(data)) {
-        setChats(data);
-      } else {
-        setChats([]);
-      }
-    } catch (error) {
-      console.error('Failed to load chats:', error);
-      setChats([]);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const loadMessages = async (chatId) => {
@@ -311,47 +340,46 @@ const Chat = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
 
-    if (!messageText.trim() || !selectedChat || !chatClient) return;
+    if (!messageText.trim() || !selectedChat || !chatClientRef.current || chatConnection !== 'connected') {
+      return;
+    }
 
     const otherUser = getOtherParticipant(selectedChat);
     if (!otherUser) return;
 
-    // Optimistic UI update
-    const tempMessage = {
-      _id: `temp-${Date.now()}`,
-      content: messageText.trim(),
-      sender: currentUserId,
-      createdAt: new Date().toISOString(),
-      status: 'sending',
-      isOptimistic: true
-    };
-
-    setMessages(prev => [...prev, tempMessage]);
-    const messageToSend = messageText.trim();
+    const tempId = `temp-${Date.now()}`;
+    const contentToSend = messageText.trim();
     setMessageText('');
     scrollToBottom();
 
-    setSending(true);
-
     try {
-      // Send via Agora Chat
+      // Send via Agora Chat FIRST
       const msg = AgoraChat.message.create({
         type: 'txt',
-        msg: messageToSend,
+        msg: contentToSend,
         to: otherUser._id.toString(),
         chatType: 'singleChat',
       });
 
-      await chatClient.send(msg);
+      await chatClientRef.current.send(msg);
       
-      // Also save to backend for persistence and history
+      // Add message to UI after successful Agora send
+      setMessages(prev => [...prev, {
+        _id: msg.id || tempId,
+        content: contentToSend,
+        sender: currentUserId,
+        createdAt: new Date().toISOString(),
+        status: 'sent'
+      }]);
+
+      // Also save to backend for persistence
       const { data } = await axios.post(`/api/chats/${selectedChat._id}/messages`, {
-        content: messageToSend
+        content: contentToSend
       });
 
-      // Replace temp message with real message
+      // Update with backend data
       setMessages(prev => prev.map(msg => 
-        msg._id === tempMessage._id ? { ...data, status: 'sent' } : msg
+        (msg._id === tempId || msg._id === msg.id) ? { ...data, status: 'sent' } : msg
       ));
 
       // Reload chats to update last message
@@ -367,11 +395,8 @@ const Chat = () => {
       
       toast.error(errorMessage || 'Failed to send message');
       
-      setMessages(prev => prev.map(msg => 
-        msg._id === tempMessage._id ? { ...msg, status: 'failed' } : msg
-      ));
-    } finally {
-      setSending(false);
+      // Restore input text on error
+      setMessageText(contentToSend);
     }
   };
 
@@ -446,7 +471,7 @@ const Chat = () => {
         <div className="chat-list-header">
           <h2>Messages</h2>
           {chatConnection === 'connected' && (
-            <div className="connection-status" title="Agora Chat Connected">
+            <div className="connection-status" title="Connected">
               <div className="status-dot connected"></div>
             </div>
           )}
@@ -481,7 +506,7 @@ const Chat = () => {
             </>
           ) : chats.length === 0 ? (
             <div className="no-chats">
-              <div className="no-chats-icon">💬</div>
+              <div className="no-chats-icon"></div>
               <h3>No conversations yet</h3>
               <p>Start chatting with experts to get personalized advice</p>
               <button onClick={() => navigate('/')} className="btn-primary">
@@ -587,7 +612,7 @@ const Chat = () => {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="no-messages">
-                  <div className="empty-icon">💬</div>
+                  <div className="empty-icon"></div>
                   <h3>No messages yet</h3>
                   <p>Start conversation with {getOtherParticipant(selectedChat)?.name}</p>
                 </div>
@@ -656,7 +681,7 @@ const Chat = () => {
             {/* Message Input */}
             {isBlockedByOther ? (
               <div className="blocked-input-notice blocked-by-other">
-                <div className="blocked-icon">🚫</div>
+                <div className="blocked-icon"></div>
                 <div className="blocked-text">
                   <strong>You are blocked</strong>
                   <p>This expert has blocked you. You cannot send messages.</p>
@@ -664,7 +689,7 @@ const Chat = () => {
               </div>
             ) : isBlocked ? (
               <div className="blocked-input-notice">
-                <div className="blocked-icon">🚫</div>
+                <div className="blocked-icon"></div>
                 <div className="blocked-text">
                   <strong>Conversation Blocked</strong>
                   <p>You have blocked this user. Unblock to send messages.</p>
@@ -686,11 +711,15 @@ const Chat = () => {
                     'Type a message...'
                   }
                   className="message-input"
-                  disabled={sending || chatConnection !== 'connected'}
+                  disabled={chatConnection !== 'connected'}
                   autoFocus
                   maxLength={1000}
                 />
-                <button type="submit" className="send-btn" disabled={sending || !messageText.trim() || chatConnection !== 'connected'}>
+                <button 
+                  type="submit" 
+                  className="send-btn" 
+                  disabled={!messageText.trim() || chatConnection !== 'connected'}
+                >
                   <FiSend />
                 </button>
               </form>
