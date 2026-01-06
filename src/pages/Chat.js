@@ -46,14 +46,29 @@ const Chat = () => {
         // Get Agora Chat token from backend
         const { data } = await axios.get('/api/agora/chat-token');
         
-        if (!data.success || !data.token) {
-          throw new Error('Failed to get chat token from backend');
+        console.log('🔑 Chat token response:', { 
+          success: data.success, 
+          hasUserId: !!data.userId, 
+          hasToken: !!data.token,
+          appKey: data.appKey?.substring(0, 10) + '...' 
+        });
+
+        if (!data.success) {
+          throw new Error('Failed to get chat token from backend: ' + data.message);
         }
 
-        const appKey = process.env.REACT_APP_AGORA_CHAT_APP_KEY || data.appKey;
+        // CRITICAL: Use userId returned by backend - MUST match token generation
+        const chatUserId = data.userId;
+        if (!chatUserId) {
+          throw new Error('No userId returned from backend');
+        }
+
+        const appKey = data.appKey || process.env.REACT_APP_AGORA_CHAT_APP_KEY;
         if (!appKey) {
           throw new Error('Agora Chat App Key not configured');
         }
+
+        console.log('🔑 Using userId for chat login:', chatUserId);
 
         // Clean up existing client if any
         if (chatClientRef.current) {
@@ -76,7 +91,7 @@ const Chat = () => {
         // Listen for connection events
         chatClient.addEventHandler('connection', {
           onConnected: () => {
-            console.log('✅ Agora Chat connected');
+            console.log('✅ Agora Chat connected successfully');
             setChatConnection('connected');
           },
           onDisconnected: () => {
@@ -93,6 +108,18 @@ const Chat = () => {
               })
               .catch(err => console.error('Token refresh error:', err));
           },
+          onError: (error) => {
+            console.error('❌ Agora Chat connection error:', error);
+            if (error.type === 'SOCKET_ERROR') {
+              setChatConnection('error');
+            } else if (error.type === 'WEB_SOCKET_ERROR') {
+              console.error('WebSocket error, code:', error.code);
+              if (error.code === 3000) {
+                console.error('❌ Auth failed - userId/token mismatch');
+              }
+              setChatConnection('error');
+            }
+          },
         });
 
         // Listen for new messages - ONLY ONCE
@@ -103,20 +130,32 @@ const Chat = () => {
           },
         });
 
-        // Login to Agora Chat
+        // Login to Agora Chat - CRITICAL: Use userId from backend response
+        console.log('🔐 Attempting to login with userId:', chatUserId);
         await chatClient.open({
-          user: user._id.toString(),
+          user: chatUserId, // Use userId from backend - MUST match token generation
           accessToken: data.token,
         });
+        console.log('✅ Chat login successful with userId:', chatUserId);
 
         isInitializedRef.current = true;
         console.log('✅ Agora Chat initialized and connected');
         setChatConnection('connected');
       } catch (error) {
         console.error('❌ Agora Chat initialization error:', error);
+        console.error('Error details:', {
+          message: error.message,
+          response: error.response,
+          data: error.data,
+          code: error.code,
+          type: error.type
+        });
         setChatConnection('error');
         isInitializedRef.current = false;
-        if (error.response?.status === 404) {
+        
+        if (error.code === 3000 || error.message?.includes('Auth failed')) {
+          toast.error('Chat authentication failed. Please refresh the page.');
+        } else if (error.response?.status === 404) {
           toast.error('Chat service not available. Please try again later.');
         } else {
           toast.error(error.message || 'Failed to connect to chat');
