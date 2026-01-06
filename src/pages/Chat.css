@@ -692,7 +692,13 @@
 }
 
 .message-status {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.message-status.failed {
+    color: #fee2e2;
 }
 
 /* ========================================

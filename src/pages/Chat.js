@@ -650,11 +650,8 @@ const Chat = () => {
                             <p>{msg.content}</p>
                             <div className="message-meta">
                               <span className="message-time">{formatTime(msg.createdAt)}</span>
-                              {isOwn && (
-                                <span className="message-status">
-                                  {msg.status === 'sending' ? '🕒' : 
-                                   msg.status === 'failed' ? '⚠️' : '✓✓'}
-                                </span>
+                              {isOwn && msg.status === 'failed' && (
+                                <span className="message-status failed">Failed</span>
                               )}
                             </div>
                           </div>
