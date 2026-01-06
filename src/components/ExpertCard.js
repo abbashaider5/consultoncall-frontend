@@ -9,36 +9,9 @@ import { useSocket } from '../context/SocketContext';
 import './ExpertCard.css';
 import VerifiedBadge from './VerifiedBadge';
 
-// Country to flag emoji mapping
-const getCountryFlag = (country) => {
-  const countryFlags = {
-    'India': '🇮🇳',
-    'United States': '🇺🇸',
-    'USA': '🇺🇸',
-    'United Kingdom': '🇬🇧',
-    'UK': '🇬🇧',
-    'Canada': '🇨🇦',
-    'Australia': '🇦🇺',
-    'Germany': '🇩🇪',
-    'France': '🇫🇷',
-    'Japan': '🇯🇵',
-    'China': '🇨🇳',
-    'Brazil': '🇧🇷',
-    'Singapore': '🇸🇬',
-    'UAE': '🇦🇪',
-    'Netherlands': '🇳🇱',
-    'Spain': '🇪🇸',
-    'Italy': '🇮🇹',
-    'South Korea': '🇰🇷',
-    'Russia': '🇷🇺',
-    'Mexico': '🇲🇽',
-    'Indonesia': '🇮🇩',
-    'Pakistan': '🇵🇰',
-    'Bangladesh': '🇧🇩',
-    'Sri Lanka': '🇱🇰',
-    'Nepal': '🇳🇵',
-  };
-  return countryFlags[country] || '🌍';
+// Country name display (no emoji flags)
+const getCountryName = (country) => {
+  return country || '';
 };
 
 const ExpertCard = ({ expert }) => {
@@ -145,9 +118,9 @@ const ExpertCard = ({ expert }) => {
               </div>
             </div>
             <div className="details-row">
-              {(expert.country || (expert.user && expert.user.country)) && (
+            {(expert.country || (expert.user && expert.user.country)) && (
                 <span className="expert-country">
-                  <span className="flag-emoji">{getCountryFlag(expert.country || (expert.user && expert.user.country))}</span> {expert.country || (expert.user && expert.user.country)}
+                  {getCountryName(expert.country || (expert.user && expert.user.country))}
                 </span>
               )}
               <span
@@ -169,7 +142,7 @@ const ExpertCard = ({ expert }) => {
           <p className="expert-title">{expert.title}</p>
           {isBusy && isOnline && (
             <span className="busy-message">
-              💬 Talking to someone...
+              Currently on call
             </span>
           )}
         </div>

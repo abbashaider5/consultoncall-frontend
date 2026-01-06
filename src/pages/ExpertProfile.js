@@ -13,36 +13,6 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import './ExpertProfile.css';
 
-const getCountryFlag = (country) => {
-  const flags = {
-    'India': '🇮🇳',
-    'United States': '🇺🇸',
-    'USA': '🇺🇸',
-    'UK': '🇬🇧',
-    'Canada': '🇨🇦',
-    'Australia': '🇦🇺',
-    'Germany': '🇩🇪',
-    'France': '🇫🇷',
-    'Japan': '🇯🇵',
-    'China': '🇨🇳',
-    'Brazil': '🇧🇷',
-    'Singapore': '🇸🇬',
-    'UAE': '🇦🇪',
-    'Netherlands': '🇳🇱',
-    'Spain': '🇪🇸',
-    'Italy': '🇮🇹',
-    'South Korea': '🇰🇷',
-    'Russia': '🇷🇺',
-    'Mexico': '🇲🇽',
-    'Indonesia': '🇮🇩',
-    'Pakistan': '🇵🇰',
-    'Bangladesh': '🇧🇩',
-    'Sri Lanka': '🇱🇰',
-    'Nepal': '🇳🇵'
-  };
-  return flags[country] || '🌍';
-};
-
 const ExpertProfile = () => {
   const { usernameOrId } = useParams();
   const navigate = useNavigate();
@@ -122,7 +92,7 @@ const ExpertProfile = () => {
       }
       const minTokens = (expert.tokensPerMinute || 0) * 5;
       if ((user.tokens || 0) < minTokens) {
-        toast.error(`Minimum ₹${minTokens} required. Please add money.`);
+        toast.error(`Minimum ${minTokens} tokens required. Please add money.`);
         navigate('/add-money');
         return;
       }
@@ -222,7 +192,7 @@ const ExpertProfile = () => {
               <div className="profile-header-card card skeleton">
                 <div className="profile-top">
                   <div className="profile-avatar skeleton" style={{ width: '120px', height: '120px', borderRadius: '50%' }}></div>
-                  <div className="profile-info" style={{ flex: 1 }}>
+                  <div className="profile-info" style={{ flex:1 }}>
                     <div className="profile-name-row" style={{ marginBottom: '8px' }}>
                       <div className="skeleton skeleton-text" style={{ width: '200px', height: '32px' }}></div>
                       <div className="skeleton" style={{ width: '80px', height: '24px', borderRadius: '12px' }}></div>
@@ -409,7 +379,8 @@ const ExpertProfile = () => {
                         {expert.user?.country && (
                           <>
                             <span className="location-text">
-                              {getCountryFlag(expert.user.country)} {expert.user.country}
+                              <FiIcons.FiMapPin className="location-icon" />
+                              {expert.user.country}
                             </span>
                             <span className="location-separator">·</span>
                           </>
@@ -634,7 +605,6 @@ const ExpertProfile = () => {
                 <BiRupee />{expert.tokensPerMinute}<span className="period">/min</span>
               </div>
             </div>
-            
 
             <button
               className="footer-chat-btn"
@@ -654,8 +624,8 @@ const ExpertProfile = () => {
           </div>
         </div>
       </div>
-      </div>
-    );
+    </div>
+  );
 };
 
 export default ExpertProfile;

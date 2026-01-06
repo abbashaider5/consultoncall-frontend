@@ -8,7 +8,7 @@ import './AgoraAudioCall.css';
 const AgoraAudioCall = () => {
   const { activeCall, endCall } = useSocket();
   const { user, updateTokens } = useAuth();
-  const [callStatus, setCallStatus] = useState('connecting'); // connecting, ringing, connected, ended, failed
+  const [callStatus, setCallStatus] = useState('connecting');
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [remoteUser, setRemoteUser] = useState(null);
@@ -23,7 +23,6 @@ const AgoraAudioCall = () => {
   useEffect(() => {
     if (!activeCall) return;
 
-    // Map SocketContext status to local status
     const statusMap = {
       'ringing': 'ringing',
       'accepted': 'connecting',
@@ -35,23 +34,15 @@ const AgoraAudioCall = () => {
   }, [activeCall?.status]);
 
   // Initialize Agora client only when call is accepted
-  // CRITICAL: Only join Agora AFTER expert accepts, NOT before
   useEffect(() => {
     if (!activeCall || activeCall.status !== 'accepted') {
-      console.log('🔌 Waiting for call to be accepted... current status:', activeCall?.status);
       return;
     }
 
-    console.log('✅ Call accepted, initializing Agora...');
-
     const initAgora = async () => {
       try {
-        console.log('🎤 Initializing Agora client...');
-        
-        // Dynamically import Agora RTC SDK
         const AgoraRTC = await import('agora-rtc-sdk-ng');
         
-        // Create client
         const client = AgoraRTC.createClient({
           mode: 'rtc',
           codec: 'vp8'
@@ -59,9 +50,7 @@ const AgoraAudioCall = () => {
 
         clientRef.current = client;
 
-        // Join channel
         const userType = user?.role === 'expert' ? 'expert' : 'user';
-        console.log('📡 Requesting Agora token...', { callId: activeCall.callId, userType });
         
         const tokenResponse = await axios.post('/api/agora/rtc-token', {
           callId: activeCall.callId,
@@ -69,60 +58,38 @@ const AgoraAudioCall = () => {
         });
 
         const { appId, channel, uid, token } = tokenResponse.data;
-        console.log('✅ Agora token received, joining channel...', { channel, uid });
 
-        // Join channel
         await client.join(appId, channel, token, uid);
-        console.log('✅ Joined Agora channel successfully');
 
-        // Create local audio track
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         audioTrackRef.current = audioTrack;
 
-        // Publish local track
         await client.publish(audioTrack);
-        console.log('✅ Local audio track published');
 
-        // Handle remote users joining
         client.on('user-published', async (remoteUser, mediaType) => {
-          console.log('📨 Remote user published:', remoteUser.uid, mediaType);
-          
           await client.subscribe(remoteUser, mediaType);
           
           if (mediaType === 'audio') {
             remoteUser.audioTrack.play();
-            console.log('✅ Remote audio track playing');
-            
-            // Update status to connected and start billing
             setCallStatus('connected');
-            
-            // Notify backend that call is connected (starts billing)
             await startBilling();
           }
         });
 
-        // Handle remote users leaving
         client.on('user-left', (remoteUser) => {
-          console.log('👋 Remote user left:', remoteUser.uid);
-          handleEndCall('Remote user ended the call');
+          handleEndCall('Remote user ended call');
         });
 
-        // Handle connection state changes
         client.on('connection-state-change', (state, reason) => {
-          console.log('🔌 Connection state changed:', state, reason);
-          
           if (state === 'DISCONNECTED') {
-            console.warn('⚠️ Agora connection lost, ending call');
             handleEndCall('Connection lost');
           } else if (state === 'CONNECTING') {
             setCallStatus('connecting');
           }
         });
 
-        console.log('✅ Agora client initialized successfully');
-
       } catch (error) {
-        console.error('❌ Agora initialization error:', error);
+        console.error('Agora initialization error:', error);
         if (!mountedRef.current) return;
         
         toast.error('Failed to connect call. Please try again.');
@@ -134,7 +101,6 @@ const AgoraAudioCall = () => {
     initAgora();
 
     return () => {
-      console.log('🧹 Cleaning up Agora resources...');
       cleanup();
     };
   }, [activeCall?.callId, activeCall?.status, user?.role]);
@@ -184,85 +150,50 @@ const AgoraAudioCall = () => {
   // Start billing when call connects
   const startBilling = useCallback(async () => {
     if (billingStartedRef.current) {
-      console.log('💰 Billing already started');
       return;
     }
 
     if (!activeCall?.callId) {
-      console.warn('⚠️ No callId for billing');
       return;
     }
 
     try {
-      console.log('💰 Starting billing for call:', activeCall.callId);
       await axios.put(`/api/calls/connect/${activeCall.callId}`);
       billingStartedRef.current = true;
-      console.log('✅ Billing started successfully');
       startTimer();
     } catch (error) {
-      console.error('❌ Error starting billing:', error);
+      console.error('Error starting billing:', error);
       toast.error('Failed to start billing. Call may not be charged.');
     }
   }, [activeCall?.callId]);
 
-  // Stop billing
-  const stopBilling = useCallback(async () => {
-    if (!billingStartedRef.current) {
-      console.log('💰 Billing not started, nothing to stop');
-      return;
-    }
-
-    if (!activeCall?.callId) {
-      console.warn('⚠️ No callId to stop billing');
-      return;
-    }
-
-    try {
-      console.log('💰 Stopping billing for call:', activeCall.callId);
-      await axios.put(`/api/calls/end/${activeCall.callId}`, {
-        initiatedBy: user?.role || 'unknown'
-      });
-      billingStartedRef.current = false;
-      console.log('✅ Billing stopped successfully');
-    } catch (error) {
-      console.error('❌ Error stopping billing:', error);
-      toast.error('Error ending billing. Please contact support.');
-    }
-  }, [activeCall?.callId, user?.role]);
-
   // Start call timer
   const startTimer = useCallback(() => {
     if (timerRef.current) {
-      console.log('⏱️ Timer already running');
       return;
     }
     
     const startTime = Date.now();
-    console.log('⏱️ Starting timer at:', new Date(startTime));
     
     timerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       setDuration(elapsed);
       
-      // Check balance every second (for users only)
       if (user?.role === 'user' && activeCall?.tokensPerMinute) {
         const elapsedMinutes = elapsed / 60;
         const estimatedCost = Math.ceil(elapsedMinutes) * activeCall.tokensPerMinute;
         const remainingBalance = (user?.tokens || 0) - estimatedCost;
         
-        // Warn at 1 minute remaining
         if (remainingBalance > 0 && remainingBalance <= activeCall.tokensPerMinute) {
-          toast.warning(`⚠️ Low balance! ~1 minute remaining`, {
+          toast.warning('Low balance! ~1 minute remaining', {
             position: 'top-center',
             autoClose: 3000,
             toastId: 'low-balance-warning'
           });
         }
         
-        // Auto-disconnect if balance exhausted
         if (remainingBalance <= 0) {
-          console.warn('💸 Balance exhausted - ending call');
-          toast.error('💰 Balance exhausted. Call ending...', {
+          toast.error('Balance exhausted. Call ending...', {
             position: 'top-center',
             autoClose: 2000
           });
@@ -274,60 +205,40 @@ const AgoraAudioCall = () => {
 
   // End call
   const handleEndCall = useCallback(async (reason = 'Call ended') => {
-    console.log('🔚 Ending call:', reason);
-    
-    // Mark as unmounted to prevent duplicate calls
     mountedRef.current = false;
-    
-    // Update status
     setCallStatus('ended');
     
-    // Stop timer immediately
     if (timerRef.current) {
-      console.log('⏱️ Stopping timer');
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
     try {
-      // Stop billing if it was started
-      if (billingStartedRef.current) {
-        const token = localStorage.getItem('token');
-        const res = await axios.put(
-          `/api/calls/end/${activeCall.callId}`,
-          { initiatedBy: user?.role || 'unknown' },
-          { headers: { 'x-auth-token': token } }
-        );
+      if (billingStartedRef.current && activeCall?.callId) {
+        const res = await axios.put(`/api/calls/end/${activeCall.callId}`, {
+          initiatedBy: user?.role || 'unknown'
+        });
         
         if (res.data.success) {
-          console.log('✅ Call ended successfully:', res.data);
-          
-          // Update user tokens
           if (user?.role === 'user') {
             updateTokens(res.data.newBalance);
             toast.success(
-              `✅ Call ended. Duration: ${res.data.call.minutes} min, Cost: ₹${res.data.call.tokensSpent}`,
+              `Call ended. Duration: ${res.data.call.minutes} min, Cost: ${res.data.call.tokensSpent}`,
               { position: 'top-center', autoClose: 5000 }
             );
           } else {
-            toast.success(`✅ Call ended. Duration: ${res.data.call.minutes} min`, {
-              position: 'top-center',
-              autoClose: 5000
+            toast.success(`Call ended. Duration: ${res.data.call.minutes} min`, {
+              position: 'top-center', autoClose: 5000
             });
           }
         }
-      } else {
-        console.log('ℹ️ Call never connected, no charge');
-        toast.info('Call ended. No charge as call did not connect.');
       }
     } catch (error) {
-      console.error('❌ Error ending call:', error);
+      console.error('Error ending call:', error);
       toast.error('Error ending call. Please refresh if issues persist.');
     } finally {
-      // Cleanup Agora
       cleanup();
       
-      // Notify socket to clear active call state
       if (activeCall?.callId) {
         endCall({ callId: activeCall.callId, initiatedBy: user?.role || 'unknown' });
       }
@@ -336,15 +247,11 @@ const AgoraAudioCall = () => {
 
   // Cleanup Agora resources
   const cleanup = useCallback(() => {
-    console.log('🧹 Cleaning up Agora resources...');
-    
-    // Stop timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
-    // Cleanup audio track
     if (audioTrackRef.current) {
       try {
         audioTrackRef.current.stop();
@@ -355,7 +262,6 @@ const AgoraAudioCall = () => {
       }
     }
 
-    // Leave channel and cleanup client
     if (clientRef.current) {
       try {
         clientRef.current.leave();
@@ -376,8 +282,7 @@ const AgoraAudioCall = () => {
           const newMutedState = !isMuted;
           await localAudioTrack.setMuted(newMutedState);
           setIsMuted(newMutedState);
-          console.log(newMutedState ? '🔇 Microphone muted' : '🎤 Microphone unmuted');
-          toast.info(newMutedState ? '🔇 Microphone muted' : '🎤 Microphone unmuted');
+          toast.info(newMutedState ? 'Microphone muted' : 'Microphone unmuted');
         }
       } catch (error) {
         console.error('Error toggling mute:', error);
@@ -415,27 +320,23 @@ const AgoraAudioCall = () => {
   const getStatusColor = () => {
     switch (callStatus) {
       case 'ringing':
-        return '#ffc107'; // Yellow
+        return '#ffc107';
       case 'connecting':
-        return '#17a2b8'; // Blue
+        return '#17a2b8';
       case 'connected':
-        return '#28a745'; // Green
+        return '#28a745';
       case 'ended':
-        return '#6c757d'; // Gray
+        return '#6c757d';
       case 'failed':
-        return '#dc3545'; // Red
+        return '#dc3545';
       default:
         return '#6c757d';
     }
   };
 
-  // Don't render if no active call
   if (!activeCall) {
-    console.log('🚫 No active call, not rendering AgoraAudioCall');
     return null;
   }
-
-  console.log('✅ Rendering AgoraAudioCall with status:', callStatus);
 
   return (
     <div className="agora-audio-call-overlay">
@@ -477,7 +378,7 @@ const AgoraAudioCall = () => {
           {user?.role === 'user' && activeCall?.tokensPerMinute && (
             <div className="call-rate-badge">
               <span className="rate-label">Rate:</span>
-              <span className="rate-value">₹{activeCall.tokensPerMinute}/min</span>
+              <span className="rate-value">{activeCall.tokensPerMinute}/min</span>
             </div>
           )}
 
@@ -504,10 +405,10 @@ const AgoraAudioCall = () => {
             onClick={toggleMute}
             disabled={callStatus !== 'connected'}
             title={isMuted ? 'Unmute' : 'Mute'}
-            style={{ opacity: callStatus === 'connected' ? 1 : 0.5, cursor: callStatus === 'connected' ? 'pointer' : 'not-allowed' }}
+            style={{ opacity: callStatus === 'connected' ? 1 : 0.5 }}
           >
             <div className="icon-circle">
-              {isMuted ? '🎤' : '🔇'}
+              {isMuted ? 'Muted' : 'Mic'}
             </div>
             <span className="btn-label">{isMuted ? 'Unmute' : 'Mute'}</span>
           </button>
@@ -518,7 +419,7 @@ const AgoraAudioCall = () => {
             title="End Call"
           >
             <div className="icon-circle">
-              📞
+              End
             </div>
             <span className="btn-label">End</span>
           </button>
@@ -527,10 +428,10 @@ const AgoraAudioCall = () => {
             className="control-btn"
             disabled={true}
             title="Speaker"
-            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+            style={{ opacity: 0.5 }}
           >
             <div className="icon-circle">
-              🔊
+              Speaker
             </div>
             <span className="btn-label">Speaker</span>
           </button>

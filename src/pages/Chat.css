@@ -30,7 +30,7 @@
    ======================================== */
 .chat-container {
     display: flex;
-    height: calc(100vh - 70px);
+    height: calc(100vh - 0px);
     background: var(--bg-secondary);
     max-width: 100%;
     margin: 0;

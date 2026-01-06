@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import './Chat.css';
 
 // Import Agora Chat SDK
-import { AgoraChat } from 'agora-chat';
+import AgoraChat from 'agora-chat';
 
 const Chat = () => {
   const [chats, setChats] = useState([]);
